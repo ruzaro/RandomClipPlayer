@@ -1,0 +1,165 @@
+﻿<html lang="en">
+
+<body>
+<script src="common.js"></script>
+<script>
+    const ALIASES_FILE_PATH = 'aliases.txt'
+
+    class DescriptionConfig {
+        constructor(showCreator, showGame, showTitle, aliases, authorPrefix, gamePrefix) {
+            this.showCreator = showCreator;
+            this.showGame = showGame;
+            this.showTitle = showTitle;
+            this.aliases = aliases;
+            this.authorPrefix = authorPrefix;
+            this.gamePrefix = gamePrefix;
+        }
+
+        static async create(globalConfig) {
+            let aliases = [];
+
+            if (await fileExists(ALIASES_FILE_PATH)){
+                let text = await (await fetch(ALIASES_FILE_PATH)).text();
+
+                const lines = text.split('\n');
+
+                for (let line of lines) {
+                    const s = line.split(/=(.*)/s)
+
+                    const key = s[0].trim().replace(/\r/g, "");
+                    const value = s[1].trim().replace(/\r/g, "");
+
+                    aliases.push([key, value]);
+                }
+            } else {
+                console.log("Missing file: " + ALIASES_FILE_PATH + ". Aliases will not be used.");
+            }
+
+            let showCreator = this.getBoolFromConfig("SHOW_CLIP_CREATORS", globalConfig, true);
+            let showGame = this.getBoolFromConfig("SHOW_CLIP_GAME", globalConfig, true);
+            let showTitle = this.getBoolFromConfig("SHOW_CLIP_TITLE", globalConfig, true);
+
+            let authorPrefix = globalConfig["DESC_AUTHOR_PREFIX"];
+            let gamePrefix = globalConfig["DESC_GAME_PREFIX"];
+
+            return new DescriptionConfig(showCreator, showGame, showTitle, aliases, authorPrefix, gamePrefix);
+        }
+
+        static getBoolFromConfig(key, globalConfig, defaultValue) {
+            let value = defaultValue;
+            let configValue = globalConfig[key];
+            if (configValue === "true") {
+                value = true
+            } else if (configValue === "false") {
+                value = false
+            }
+            return value;
+        }
+    }
+
+    class Description {
+        constructor(descriptionConfig) {
+            this.config = descriptionConfig;
+        }
+
+        static async create(globalConfig) {
+            let descriptionConfig = await DescriptionConfig.create(globalConfig);
+
+            return new Description(descriptionConfig);
+        }
+
+        set(text) {
+            const descriptionText = document.getElementById("description")
+            descriptionText.innerText = text
+        }
+
+        setFromClip(clip) {
+            let finalText = ''
+
+            if (this.config.showTitle) {
+                finalText += `\"${clip.title}\"`
+            }
+
+            if (this.config.showCreator) {
+                let creator = clip.creator_name;
+                const creator_lower = creator.toLowerCase();
+
+                for (let i = 0; i < this.config.aliases.length; ++i) {
+                    const alias_list = this.config.aliases[i];
+
+                    const name = alias_list[0].toLowerCase();
+                    const alias = alias_list[1];
+
+                    if (creator_lower.includes(name)) {
+                        creator = alias;
+                        break;
+                    }
+                }
+
+                finalText += `\n${this.config.authorPrefix} ${creator}`
+            }
+
+            if (this.config.showGame) {
+                finalText += `\n${this.config.gamePrefix} ${clip.gameName}`
+            }
+
+            this.set(finalText);
+        }
+    }
+
+    async function run() {
+        let globalConfig = await readGlobalConfig();
+
+        let description = await Description.create(globalConfig);
+
+        description.set('');
+
+        const channel = new BroadcastChannel(BROADCAST_CHANNEL_NAME);
+
+        channel.onmessage = (event) => {
+            let data = event.data;
+
+            if (data === "clear") {
+                description.set('');
+            } else {
+                let clip = JSON.parse(data);
+
+                description.setFromClip(clip);
+            }
+        };
+    }
+
+    window.addEventListener("load", run);
+
+</script>
+<div class="container">
+    <div id="description" class="overlayText"></div>
+</div>
+</body>
+
+<head>
+    <style>
+        .container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        .overlayText {
+            position: absolute;
+            top: calc(0px);
+            left: calc((100vw - min(100vh/9, 100vw/16)*16)/2 + 1.2vw);
+            color: white;
+            text-shadow: 1px 0 0 #000, 0 -1px 0 #000, 0 1px 0 #000, -1px 0 0 #000;
+            font-size: xxx-large;
+            white-space: pre-wrap;      /* CSS3 */
+            white-space: -moz-pre-wrap; /* Firefox */
+            white-space: -pre-wrap;     /* Opera <7 */
+            white-space: -o-pre-wrap;   /* Opera 7 */
+            word-wrap: break-word;      /* IE */
+        }
+    </style>
+    <title>Twitch Clip Description</title>
+</head>
+
+</html>

@@ -1,0 +1,422 @@
+﻿<html lang="en">
+
+<body>
+
+<script src="common.js"></script>
+
+<script>
+    const BANNED_FILE_PATH = 'banned.txt'
+
+    class AuthFetch {
+        constructor(clientId, clientSecret, broadcasterName) {
+            this.clientId = clientId;
+            this.clientSecret = clientSecret;
+            this.broadcasterName = broadcasterName;
+        }
+
+        static async create(globalConfig) {
+            let clientId = globalConfig["CLIENT_ID"];
+            let clientSecret = globalConfig["CLIENT_SECRET"];
+            let broadcasterName = globalConfig["BROADCASTER_NAME"];
+
+            if (clientId === null) {
+                console.error("CLIENT_ID key missing in " + CONFIG_FILE_PATH)
+            }
+
+            if (clientSecret === null) {
+                console.error("CLIENT_SECRET key missing in " + CONFIG_FILE_PATH)
+            }
+
+            if (broadcasterName === null) {
+                console.error("BROADCASTER_NAME key missing in " + CONFIG_FILE_PATH)
+            }
+
+            return new AuthFetch(clientId, clientSecret, broadcasterName);
+        }
+
+        async prepareOAuth() {
+            this.oAuth = await this.prepareCredentials();
+            this.broadcasterId = await this.prepareBroadcasterId();
+        }
+
+        async prepareCredentials() {
+            const response = await fetch(`https://id.twitch.tv/oauth2/token?client_id=${this.clientId}&client_secret=${this.clientSecret}&grant_type=client_credentials`, {
+                method: "POST"
+            });
+            return await response.json();
+        }
+
+        async prepareBroadcasterId() {
+            const response = await this.authenticatedFetch(`https://api.twitch.tv/helix/users?login=${this.broadcasterName}`);
+            return (await response.json()).data[0].id;
+        }
+
+        async authenticatedFetch(url, options) {
+            options = options || {};
+            options.headers = options.headers || {};
+
+            options.headers["Client-ID"] = this.clientId;
+            options.headers["Authorization"] = `Bearer ${this.oAuth.access_token}`;
+
+            return await fetch(url, options);
+        }
+    }
+
+    const Mode = {
+        Top: 'Top',
+        Random: 'Random'
+    };
+
+    class ClipsHandlerConfig {
+        constructor(topOrRandom, maxClips) {
+            this.maxClips = maxClips;
+            this.topOrRandom = topOrRandom;
+            this.bannedWords = []
+        }
+
+        static async create(globalConfig) {
+            let topOrRandom = globalConfig["TOP_OR_RANDOM"];
+
+            // TOP_OR_RANDOM can be either Mode.Top to prioritise top clips or Mode.Random to get random clips out of your top 1000
+            // note that Mode.Random clip mode requires a tiny bit of buffer time when the page is first loaded to collect a list of clips
+
+            if (topOrRandom === "top") {
+                topOrRandom = Mode.Top;
+            } else {
+                topOrRandom = Mode.Random;
+            }
+
+            let maxClips = 1000;
+            let maxClipsStr = globalConfig["MAX_CLIPS"];
+            let parsed = parseInt(maxClipsStr);
+            if (!isNaN(parsed)) {
+                maxClips = parsed;
+            }
+
+            let config = new ClipsHandlerConfig(topOrRandom, maxClips);
+
+            if (await fileExists(BANNED_FILE_PATH)){
+                let text = await (await fetch(BANNED_FILE_PATH)).text();
+
+                const lines = text.split('\n');
+
+                for (let line of lines) {
+                    config.bannedWords.push(line);
+                }
+            }
+
+            return config;
+        }
+    }
+
+    class ClipsHandler {
+        constructor(authFetch, clipsHandlerConfig, channel) {
+            this.authFetch = authFetch;
+            this.clipsPagination = null
+            this.clipsData = []
+            this.config = clipsHandlerConfig;
+            this.channel = channel;
+        }
+
+        static async create(globalConfig, channel) {
+            let clipsHandlerConfig = await ClipsHandlerConfig.create(globalConfig);
+
+            let authFetch = await AuthFetch.create(globalConfig);
+
+            await authFetch.prepareOAuth();
+
+            return new ClipsHandler(authFetch, clipsHandlerConfig, channel);
+        }
+
+        async getTopClips() {
+            if (this.clipsData.length === 0) return []
+
+            let response = await this.authFetch.authenticatedFetch(`https://api.twitch.tv/helix/clips?first=100&broadcaster_id=${this.authFetch.broadcasterId}${this.clipsPagination ? `&after=${this.clipsPagination}` : ""}`);
+            let body = await response.json();
+
+            this.clipsPagination = body.pagination.cursor;
+
+            return this.filterClips(body.data);
+        }
+
+        async getRandomClips() {
+            if (this.clipsData.length >= this.config.maxClips) return [];
+            if (!this.clipsPagination && this.clipsData.length > 0) return [];
+
+            let response = await this.authFetch.authenticatedFetch(`https://api.twitch.tv/helix/clips?first=100&broadcaster_id=${this.authFetch.broadcasterId}${this.clipsPagination ? `&after=${this.clipsPagination}` : ""}`);
+            let body = await response.json();
+
+            this.clipsPagination = body.pagination.cursor;
+
+            return this.filterClips(body.data);
+        }
+
+        filterClips(clips){
+            let ret = []
+            let bannedWords = this.config.bannedWords;
+
+            for (let clip of clips) {
+                let title = clip.title.toLowerCase();
+
+                let valid = true;
+
+                for (let k = 0; k < bannedWords.length; ++k){
+                    let banned_word = bannedWords[k];
+
+                    if (title.includes(banned_word)){
+                        valid = false;
+                        break;
+                    }
+                }
+
+                if (valid){
+                    ret.push(clip);
+                }
+            }
+
+            return ret;
+        }
+
+        async prepareFirstClips() {
+            this.channel.postMessage("clear");
+
+            let newClips = this.config.topOrRandom === Mode.Top ? await this.getTopClips() : await this.getRandomClips()
+
+            this.clipsData = this.clipsData.concat(newClips);
+        }
+
+        async prepareClips() {
+            let newClips = this.config.topOrRandom === Mode.Top ? await this.getTopClips() : await this.getRandomClips()
+
+            this.clipsData = this.clipsData.concat(newClips);
+        }
+
+        async getNextClip() {
+            if (this.clipsData.length === 0) return null
+
+            let clipData = this.selectNextClip();
+
+            let clipInfo = await this.getClipInfo(clipData.id);
+
+            let url = await this.getDownloadUrl(clipData.id);
+
+            clipData.gameName = clipInfo.game.displayName;
+
+            return new Clip(clipData, url);
+        }
+
+        selectNextClip(){
+            let clipData;
+
+            if (this.config.topOrRandom === Mode.Top) {
+                clipData = this.clipsData[0];
+            } else {
+                let random = Math.floor(Math.random() * Object.keys(this.clipsData).length);
+
+                const index = Object.keys(this.clipsData)[random];
+
+                clipData = this.clipsData[index];
+            }
+
+            this.clipsData.splice(this.clipsData.indexOf(clipData), 1);
+
+            return clipData;
+        }
+
+        async getClipInfo(clipId) {
+            const url = "https://gql.twitch.tv/gql";
+
+            const requestBody = {
+                query: `query{clip(slug:\"${clipId}\"){game{displayName}}}`,
+                variables: {}
+            };
+
+            const response = await fetch(url, {
+                method: "POST",
+                headers: {
+                    "Client-ID": "kimne78kx3ncx6brgo4mv6wki5h1ko",
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            return (await response.json()).data.clip;
+        }
+
+        async getClipLinks(clipId) {
+            const url = "https://gql.twitch.tv/gql";
+
+            const requestBody = {
+                operationName: "VideoAccessToken_Clip",
+                variables: { slug: clipId },
+                extensions: {
+                    persistedQuery: {
+                        version: 1,
+                        sha256Hash: "36b89d2507fce29e5ca551df756d27c1cfe079e2609642b4390aa4c35796eb11"
+                    }
+                }
+            };
+
+            const response = await fetch(url, {
+                method: "POST",
+                headers: {
+                    "Client-ID": "kimne78kx3ncx6brgo4mv6wki5h1ko",
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            const data = await response.json();
+
+            if (data.data.clip.videoQualities && data.data.clip.videoQualities.length > 0) {
+                data.data.clip.videoQualities.sort((a, b) => b.frameHeight - a.frameHeight);
+            }
+
+            return data;
+        }
+
+        async getDownloadUrl(clipId) {
+            const clipData = await this.getClipLinks(clipId);
+            const clip = clipData.data.clip;
+
+            if (!clip.playbackAccessToken) {
+                throw new Error("Invalid Clip, deleted possibly?");
+            }
+
+            if (!clip.videoQualities || clip.videoQualities.length === 0) {
+                throw new Error("Clip has no video qualities, deleted possibly?");
+            }
+
+            const qualityMatch = clip.videoQualities[0];
+
+            const downloadUrl = qualityMatch.sourceURL;
+
+            return `${downloadUrl}?sig=${clip.playbackAccessToken.signature}&token=${encodeURIComponent(clip.playbackAccessToken.value)}`;
+        }
+    }
+
+    class Clip {
+        constructor(data, url) {
+            this.data = data;
+            this.url = url;
+        }
+    }
+
+    class PlayerHandler {
+        constructor(globalConfig, channel) {
+            let volume = 50;
+            let volumePercent = globalConfig["VOLUME_PERCENT"];
+            let parsed = parseInt(volumePercent);
+            if (!isNaN(parsed)) {
+                volume = parsed;
+            }
+
+            const player = document.getElementById("player");
+
+            player.load();
+            player.loop = false;
+            player.controls = false;
+            player.volume = volume / 100;
+
+            this.player = player;
+            this.channel = channel
+        }
+
+        addListener(func){
+            this.player.addEventListener("ended", func);
+        }
+
+        async playClip(clip){
+            this.player.pause()
+            this.player.src = clip.url
+
+            await this.player.play()
+
+            this.channel.postMessage(JSON.stringify(clip.data));
+        }
+    }
+
+    class ClipPlayer{
+        constructor(playerHandler, clipsHandler) {
+            this.next = null;
+            this.playerHandler = playerHandler;
+            this.clipsHandler = clipsHandler;
+            this.playing = false;
+
+            this.playerHandler.addListener(() => {
+                this.playing = false;
+                this.playNextClip();
+            });
+        }
+
+        async prepareFirstClip() {
+            await this.clipsHandler.prepareFirstClips();
+
+            this.next = await this.clipsHandler.getNextClip();
+        }
+
+        async playNextClip(){
+            if (this.next === null){
+                await this.clipsHandler.prepareFirstClips();
+                this.next = await this.clipsHandler.getNextClip();
+            }
+
+            this.playing = true;
+            await Promise.all([this.playerHandler.playClip(this.next), this.prepareClips()]);
+
+            this.next = await this.clipsHandler.getNextClip();
+        }
+
+        prepareClips() {
+            return new Promise(async (resolve, reject) => {
+                const maxAttempts = 10;
+                let attempts = 0;
+                while (attempts < maxAttempts) {
+                    if (!this.playing) {
+                        resolve("Success: Condition met.");
+                        return;
+                    }
+                    await this.clipsHandler.prepareClips()
+                    ++attempts;
+                }
+
+                resolve("Success: Max attempts.");
+            });
+        }
+    }
+
+    async function run() {
+        let channel = new BroadcastChannel(BROADCAST_CHANNEL_NAME);
+
+        let globalConfig = await readGlobalConfig();
+
+        const player = new PlayerHandler(globalConfig, channel)
+
+        let clipsHandler = await ClipsHandler.create(globalConfig, channel);
+
+        let clipPlayer = new ClipPlayer(player, clipsHandler);
+
+        await clipPlayer.prepareFirstClip();
+
+        await clipPlayer.playNextClip();
+    }
+
+    window.addEventListener("load", run);
+</script>
+<div class="container">
+    <video id="player" style="width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: -1;" autoplay></video>
+</div>
+</body>
+
+<head>
+    <style>
+        .container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+    <title>Twitch Clip Player</title>
+</head>
+
+</html>
