@@ -5,7 +5,7 @@
 <script src="common.js"></script>
 
 <script>
-    const BANNED_FILE_PATH = 'banned.txt'
+    const FILTER_FILE_PATH = 'filter.txt'
 
     class AuthFetch {
         constructor(clientId, clientSecret, broadcasterName) {
@@ -71,7 +71,7 @@
         constructor(topOrRandom, maxClips) {
             this.maxClips = maxClips;
             this.topOrRandom = topOrRandom;
-            this.bannedWords = []
+            this.wordsToFilter = []
         }
 
         static async create(globalConfig) {
@@ -95,13 +95,13 @@
 
             let config = new ClipsHandlerConfig(topOrRandom, maxClips);
 
-            if (await fileExists(BANNED_FILE_PATH)){
-                let text = await (await fetch(BANNED_FILE_PATH)).text();
+            if (await fileExists(FILTER_FILE_PATH)){
+                let text = await (await fetch(FILTER_FILE_PATH)).text();
 
                 const lines = text.split('\n');
 
                 for (let line of lines) {
-                    config.bannedWords.push(line);
+                    config.wordsToFilter.push(line);
                 }
             }
 
@@ -153,17 +153,17 @@
 
         filterClips(clips){
             let ret = []
-            let bannedWords = this.config.bannedWords;
+            let wordsToFilter = this.config.wordsToFilter;
 
             for (let clip of clips) {
                 let title = clip.title.toLowerCase();
 
                 let valid = true;
 
-                for (let k = 0; k < bannedWords.length; ++k){
-                    let banned_word = bannedWords[k];
+                for (let k = 0; k < wordsToFilter.length; ++k){
+                    let wordToFilter = wordsToFilter[k];
 
-                    if (title.includes(banned_word)){
+                    if (title.includes(wordToFilter)){
                         valid = false;
                         break;
                     }
