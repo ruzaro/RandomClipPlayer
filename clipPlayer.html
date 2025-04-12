@@ -180,15 +180,17 @@
         async prepareFirstClips() {
             this.channel.postMessage("clear");
 
-            let newClips = this.config.topOrRandom === Mode.Top ? await this.getTopClips() : await this.getRandomClips()
-
-            this.clipsData = this.clipsData.concat(newClips);
+            this.clipsData = this.config.topOrRandom === Mode.Top ? await this.getTopClips() : await this.getRandomClips()
         }
 
         async prepareClips() {
             let newClips = this.config.topOrRandom === Mode.Top ? await this.getTopClips() : await this.getRandomClips()
 
-            this.clipsData = this.clipsData.concat(newClips);
+            for (let newClip of newClips) {
+                if (!this.clipsData.some(x => x.id === newClip.id)) {
+                    this.clipsData.push(newClip);
+                }
+            }
         }
 
         async getNextClip() {
