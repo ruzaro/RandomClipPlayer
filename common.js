@@ -13,7 +13,7 @@ async function fileExists(url) {
 
 async function readGlobalConfig() {
     if (!await fileExists(CONFIG_FILE_PATH)){
-        console.error("Config file missing: " + CONFIG_FILE_PATH)
+        throw new Error("Config file missing: " + CONFIG_FILE_PATH)
     }
 
     let ret = {};
