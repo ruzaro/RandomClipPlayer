@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Twitch Clip Player Config</title>
+</head>
+<body>
+<h1>🛠️ Twitch Clip Player Config</h1>
+
+<p>If the <code>config.txt</code> exists in the same folder, it will be automatically loaded.</p>
+
+<form id="configForm">
+    <label>Client ID: <input name="CLIENT_ID" required></label><br><br>
+    <label>Client secret: <input name="CLIENT_SECRET" required></label><br><br>
+    <label>Twitch channel name: <input name="BROADCASTER_NAME" required></label><br><br>
+    <label>Top/Random
+        <select name="TOP_OR_RANDOM">
+            <option value="random" selected>Random</option>
+            <option value="top">Top</option>
+        </select>
+    </label><br><br>
+    <label>Maximum number of clips: <input name="MAX_CLIPS" value="1000"></label><br><br>
+    <label>Volume (0–100): <input name="VOLUME_PERCENT" value="50"></label><br><br>
+    <label><input type="checkbox" name="SHOW_CLIP_CREATORS" checked> Show the author</label><br>
+    <label><input type="checkbox" name="SHOW_CLIP_GAME" checked> Show the game</label><br>
+    <label><input type="checkbox" name="SHOW_CLIP_TITLE" checked> Show the title</label><br><br>
+    <label>Description author prefix: <input name="DESC_AUTHOR_PREFIX" required value="Author: "></label><br><br>
+    <label>Description game prefix: <input name="DESC_GAME_PREFIX" required value="Game: "></label><br><br>
+
+    <button type="submit">Download config.txt</button>
+</form>
+
+<script src="common.js"></script>
+<script>
+    async function loadConfigIfExists() {
+        try {
+            const globalConfig = await readGlobalConfig();
+
+            const form = document.getElementById("configForm");
+
+            for (const [key, value] of Object.entries(globalConfig)) {
+                const input = form.elements[key];
+                if (!input) return;
+
+                if (input.type === "checkbox") {
+                    input.checked = value.trim() === "true";
+                } else {
+                    input.value = value.trim();
+                }
+            }
+        } catch (e) {
+            console.log(`${CONFIG_FILE_PATH} not found or couldn't be loaded`);
+        }
+    }
+
+    document.getElementById("configForm").addEventListener("submit", function(e) {
+        e.preventDefault();
+        const form = new FormData(e.target);
+        let config = "";
+
+        for (const [key, value] of form.entries()) {
+            if (CHECKBOX_KEYS.includes(key)) {
+                config += key + "=true\n";
+            } else {
+                config += key + "=" + value + "\n";
+            }
+        }
+
+        CHECKBOX_KEYS.forEach(k => {
+            if (!form.has(k)) config += k + "=false\n";
+        });
+
+        const blob = new Blob([config], { type: 'text/plain' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = "config.txt";
+        a.click();
+    });
+
+    window.addEventListener("load", loadConfigIfExists);
+</script>
+</body>
+</html>
