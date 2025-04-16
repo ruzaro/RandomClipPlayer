@@ -39,3 +39,26 @@ async function parseGlobalConfig(text) {
 
     return ret;
 }
+
+function parseRange(text, min, max, defaultValue) {
+    let val = defaultValue;
+    let parsed = parseInt(text);
+    if (!isNaN(parsed)) {
+        val = parsed;
+    }
+
+    if (val < min || val > max) {
+        val = defaultValue;
+    }
+
+    return val;
+}
+
+function parseNumber(text, defaultValue){
+    let val = defaultValue;
+    let parsed = parseInt(text);
+    if (!isNaN(parsed)) {
+        val = parsed;
+    }
+    return val;
+}

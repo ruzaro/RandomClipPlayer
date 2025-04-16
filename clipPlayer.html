@@ -16,19 +16,18 @@
 
         static async create(globalConfig) {
             let clientId = globalConfig["CLIENT_ID"];
-            let clientSecret = globalConfig["CLIENT_SECRET"];
-            let broadcasterName = globalConfig["BROADCASTER_NAME"];
-
             if (clientId === null) {
-                console.error("CLIENT_ID key missing in " + CONFIG_FILE_PATH)
+                throw new Error("CLIENT_ID key missing in " + CONFIG_FILE_PATH);
             }
 
+            let clientSecret = globalConfig["CLIENT_SECRET"];
             if (clientSecret === null) {
-                console.error("CLIENT_SECRET key missing in " + CONFIG_FILE_PATH)
+                throw new Error("CLIENT_SECRET key missing in " + CONFIG_FILE_PATH);
             }
 
+            let broadcasterName = globalConfig["BROADCASTER_NAME"];
             if (broadcasterName === null) {
-                console.error("BROADCASTER_NAME key missing in " + CONFIG_FILE_PATH)
+                throw new Error("BROADCASTER_NAME key missing in " + CONFIG_FILE_PATH);
             }
 
             return new AuthFetch(clientId, clientSecret, broadcasterName);
@@ -47,11 +46,11 @@
         }
 
         async prepareBroadcasterId() {
-            const response = await this.authenticatedFetch(`https://api.twitch.tv/helix/users?login=${this.broadcasterName}`);
+            const response = await this.fetch(`https://api.twitch.tv/helix/users?login=${this.broadcasterName}`);
             return (await response.json()).data[0].id;
         }
 
-        async authenticatedFetch(url, options) {
+        async fetch(url, options) {
             options = options || {};
             options.headers = options.headers || {};
 
@@ -86,12 +85,7 @@
                 topOrRandom = Mode.Random;
             }
 
-            let maxClips = 1000;
-            let maxClipsStr = globalConfig["MAX_CLIPS"];
-            let parsed = parseInt(maxClipsStr);
-            if (!isNaN(parsed)) {
-                maxClips = parsed;
-            }
+            const maxClips = parseNumber(globalConfig["MAX_CLIPS"], 1000);
 
             let config = new ClipsHandlerConfig(topOrRandom, maxClips);
 
@@ -131,7 +125,7 @@
         async getTopClips() {
             if (this.clipsData.length === 0) return []
 
-            let response = await this.authFetch.authenticatedFetch(`https://api.twitch.tv/helix/clips?first=100&broadcaster_id=${this.authFetch.broadcasterId}${this.clipsPagination ? `&after=${this.clipsPagination}` : ""}`);
+            let response = await this.authFetch.fetch(`https://api.twitch.tv/helix/clips?first=100&broadcaster_id=${this.authFetch.broadcasterId}${this.clipsPagination ? `&after=${this.clipsPagination}` : ""}`);
             let body = await response.json();
 
             this.clipsPagination = body.pagination.cursor;
@@ -143,7 +137,7 @@
             if (this.clipsData.length >= this.config.maxClips) return [];
             if (!this.clipsPagination && this.clipsData.length > 0) return [];
 
-            let response = await this.authFetch.authenticatedFetch(`https://api.twitch.tv/helix/clips?first=100&broadcaster_id=${this.authFetch.broadcasterId}${this.clipsPagination ? `&after=${this.clipsPagination}` : ""}`);
+            let response = await this.authFetch.fetch(`https://api.twitch.tv/helix/clips?first=100&broadcaster_id=${this.authFetch.broadcasterId}${this.clipsPagination ? `&after=${this.clipsPagination}` : ""}`);
             let body = await response.json();
 
             this.clipsPagination = body.pagination.cursor;
@@ -306,12 +300,7 @@
 
     class PlayerHandler {
         constructor(globalConfig, channel) {
-            let volume = 50;
-            let volumePercent = globalConfig["VOLUME_PERCENT"];
-            let parsed = parseInt(volumePercent);
-            if (!isNaN(parsed)) {
-                volume = parsed;
-            }
+            const volume = parseRange(globalConfig["VOLUME_PERCENT"], 0, 100, 50);
 
             const player = document.getElementById("player");
 
