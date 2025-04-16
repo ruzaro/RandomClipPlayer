@@ -18,9 +18,11 @@ async function readGlobalConfig() {
         throw new Error("Config file missing: " + CONFIG_FILE_PATH)
     }
 
-    let ret = {};
+    return parseGlobalConfig(await (await fetch(CONFIG_FILE_PATH)).text());
+}
 
-    let text = await (await fetch(CONFIG_FILE_PATH)).text();
+async function parseGlobalConfig(text) {
+    let ret = {};
 
     const lines = text.split('\n');
 
