@@ -104,26 +104,25 @@
     }
 
     class ClipsHandler {
-        constructor(authFetch, clipsHandlerConfig, channel) {
+        constructor(authFetch, clipsHandlerConfig) {
             this.authFetch = authFetch;
             this.clipsPagination = null
             this.clipsData = []
             this.config = clipsHandlerConfig;
-            this.channel = channel;
         }
 
-        static async create(globalConfig, channel) {
+        static async create(globalConfig) {
             let clipsHandlerConfig = await ClipsHandlerConfig.create(globalConfig);
 
             let authFetch = await AuthFetch.create(globalConfig);
 
             await authFetch.prepareOAuth();
 
-            return new ClipsHandler(authFetch, clipsHandlerConfig, channel);
+            return new ClipsHandler(authFetch, clipsHandlerConfig);
         }
 
-        async getTopClips() {
-            if (this.clipsData.length === 0) return []
+        async fetchTopClips() {
+            if (this.clipsData.length !== 0) return []
 
             let response = await this.authFetch.fetch(`https://api.twitch.tv/helix/clips?first=100&broadcaster_id=${this.authFetch.broadcasterId}${this.clipsPagination ? `&after=${this.clipsPagination}` : ""}`);
             let body = await response.json();
@@ -133,8 +132,7 @@
             return this.filterClips(body.data);
         }
 
-        async getRandomClips() {
-            if (this.clipsData.length >= this.config.maxClips) return [];
+        async fetchRandomClips() {
             if (!this.clipsPagination && this.clipsData.length > 0) return [];
 
             let response = await this.authFetch.fetch(`https://api.twitch.tv/helix/clips?first=100&broadcaster_id=${this.authFetch.broadcasterId}${this.clipsPagination ? `&after=${this.clipsPagination}` : ""}`);
@@ -171,14 +169,10 @@
             return ret;
         }
 
-        async prepareFirstClips() {
-            this.channel.postMessage("clear");
+        async fetchClips() {
+            if (this.clipsData.length >= this.config.maxClips) return;
 
-            this.clipsData = this.config.topOrRandom === Mode.Top ? await this.getTopClips() : await this.getRandomClips()
-        }
-
-        async prepareClips() {
-            let newClips = this.config.topOrRandom === Mode.Top ? await this.getTopClips() : await this.getRandomClips()
+            let newClips = this.config.topOrRandom === Mode.Top ? await this.fetchTopClips() : await this.fetchRandomClips()
 
             for (let newClip of newClips) {
                 if (!this.clipsData.some(x => x.id === newClip.id)) {
@@ -194,11 +188,10 @@
 
             let clipInfo = await this.getClipInfo(clipData.id);
 
-            let url = await this.getDownloadUrl(clipData.id);
-
+            clipData.url = await this.getDownloadUrl(clipData.id);
             clipData.gameName = clipInfo.game.displayName;
 
-            return new Clip(clipData, url);
+            return clipData;
         }
 
         selectNextClip(){
@@ -292,74 +285,116 @@
     }
 
     class Clip {
-        constructor(data, url) {
+        constructor(data) {
             this.data = data;
-            this.url = url;
         }
     }
 
     class PlayerHandler {
-        constructor(globalConfig, channel) {
+        constructor(globalConfig) {
             const volume = parseRange(globalConfig["VOLUME_PERCENT"], 0, 100, 50);
 
-            const player = document.getElementById("player");
+            {
+                const player = document.getElementById("player1");
 
-            player.load();
-            player.loop = false;
-            player.controls = false;
-            player.volume = volume / 100;
+                player.load();
+                player.loop = false;
+                player.controls = false;
+                player.volume = volume / 100;
 
-            this.player = player;
-            this.channel = channel
+                this.current = player;
+            }
+            {
+                const player = document.getElementById("player2");
+
+                player.load();
+                player.loop = false;
+                player.controls = false;
+                player.volume = volume / 100;
+
+                this.next = player;
+            }
+
+            this.hide(this.current);
+            this.hide(this.next);
         }
 
-        addListener(func){
-            this.player.addEventListener("ended", func);
+        addEndedListener(func){
+            this.current.addEventListener("ended", func);
+            this.next.addEventListener("ended", func);
         }
 
-        async playClip(clip){
-            this.player.pause()
-            this.player.src = clip.url
+        async playClip(){
+            let temp = this.current;
+            this.current = this.next;
+            this.next = temp;
 
-            await this.player.play()
+            let player = this.current;
+            this.show(player);
+            this.hide(this.next);
 
-            this.channel.postMessage(JSON.stringify(clip.data));
+            await player.play();
+        }
+
+        prepareNextClip(clip) {
+            let player = this.next;
+
+            player.pause();
+            player.src = clip.url;
+        }
+
+        show(player) {
+            player.style.display = 'block';
+        }
+
+        hide(player) {
+            player.style.display = 'none';
         }
     }
 
     class ClipPlayer{
-        constructor(playerHandler, clipsHandler) {
+        constructor(playerHandler, clipsHandler, channel) {
             this.next = null;
             this.playerHandler = playerHandler;
             this.clipsHandler = clipsHandler;
+            this.channel = channel;
             this.playing = false;
+            this.fetching = null;
 
-            this.playerHandler.addListener(() => {
+            this.playerHandler.addEndedListener(async () => {
                 this.playing = false;
-                this.playNextClip();
+
+                await this.fetching;
+
+                this.fetching = null;
+
+                await this.playNextClip();
             });
-        }
-
-        async prepareFirstClip() {
-            await this.clipsHandler.prepareFirstClips();
-
-            this.next = await this.clipsHandler.getNextClip();
         }
 
         async playNextClip(){
             if (this.next === null){
-                await this.clipsHandler.prepareFirstClips();
+                this.channel.postMessage("clear");
+                await this.clipsHandler.fetchClips();
                 this.next = await this.clipsHandler.getNextClip();
+                this.playerHandler.prepareNextClip(this.next);
             }
 
             this.playing = true;
-            await Promise.all([this.playerHandler.playClip(this.next), this.prepareClips()]);
-
-            this.next = await this.clipsHandler.getNextClip();
+            this.fetching = this.fetchNextClips()
+            await Promise.all([this.playClip(this.next), this.fetching]);
         }
 
-        prepareClips() {
+        async playClip(clip){
+            await this.playerHandler.playClip(clip)
+            this.channel.postMessage(JSON.stringify(clip));
+        }
+
+        fetchNextClips() {
             return new Promise(async (resolve, reject) => {
+                this.next = await this.clipsHandler.getNextClip();
+                this.playerHandler.prepareNextClip(this.next);
+
                 const maxAttempts = 10;
                 let attempts = 0;
                 while (attempts < maxAttempts) {
@@ -367,7 +402,7 @@
                         resolve("Success: Condition met.");
                         return;
                     }
-                    await this.clipsHandler.prepareClips()
+                    await this.clipsHandler.fetchClips()
                     ++attempts;
                 }
 
@@ -381,13 +416,11 @@
 
         let globalConfig = await readGlobalConfig();
 
-        const player = new PlayerHandler(globalConfig, channel)
+        const player = new PlayerHandler(globalConfig)
 
-        let clipsHandler = await ClipsHandler.create(globalConfig, channel);
+        let clipsHandler = await ClipsHandler.create(globalConfig);
 
-        let clipPlayer = new ClipPlayer(player, clipsHandler);
-
-        await clipPlayer.prepareFirstClip();
+        let clipPlayer = new ClipPlayer(player, clipsHandler, channel);
 
         await clipPlayer.playNextClip();
     }
@@ -395,7 +428,8 @@
     window.addEventListener("load", run);
 </script>
 <div class="container">
-    <video id="player" style="width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: -1;" autoplay></video>
+    <video id="player1" style="width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: -1;"></video>
+    <video id="player2" style="width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: -1;"></video>
 </div>
 </body>
 
