@@ -1,7 +1,24 @@
 # Random Clip Player
-A simple random Twitch clip player to use in OBS.
+A simple HTML-based Twitch clip player that shows random or top clips from a specific Twitch channel — perfect for break screens on OBS!
 
----
+## Table of Contents
+
+- [Setup](#setup)
+    - [I. Extracting Client ID and Client Secret](#i-extracting-client-id-and-client-secret)
+    - [II. Preparing files](#ii-preparing-files)
+    - [III. Adding player to OBS](#iii-adding-player-to-obs)
+- [Optional functionality](#optional-functionality)
+    - [`filter.txt`](#filtertxt)
+    - [`aliases.txt`](#aliasestxt)
+- [Manual `config.txt` preparation](#manual-configtxt-preparation)
+    - [Config options](#config-options)
+- [Example configuration files](#example-configuration-files)
+    - [`config.txt`](#configtxt)
+    - [`aliases.txt`](#aliasestxt-1)
+    - [`filter.txt`](#filtertxt-1)
+- [Troubleshooting](#troubleshooting)
+- [Screenshots](#screenshots)
+
 # Setup
 You are required to create a Twitch developer application in order for this to function.
 If you have already created one and have the Client ID and Client Secret, skip the `Extracting Client ID and Client Secret` step.
@@ -18,8 +35,8 @@ If you have already created one and have the Client ID and Client Secret, skip t
 ## II. Preparing files
 
 1. Now, download the `clipPlayer.zip` file from [here](https://github.com/ruzaro/RandomClipPlayer/releases/latest). Extract it somewhere accessible.
-2. Create the `config.txt` file. It needs to be located next to other files.
-3. Open the `configuratior.html` file in Your browser. It can be used to fill the `config.txt` file. You can also fill it manually based on the data below.
+2. Create the `config.txt` file. It needs to be located next to the other files.
+3. Open the `configurator.html` file in your browser. It can be used to fill the `config.txt` file. You can also fill it manually based on the data below.
 
 
 ## III. Adding player to OBS
@@ -27,7 +44,7 @@ If you have already created one and have the Client ID and Client Secret, skip t
 1. In OBS, add the 'clipPlayer.html' file as a Browser Source. You need to tick "local file" in order for this to be possible.
 2. In OBS, adjust the width and height of the Browser Source in the "Properties" panel rather than scaling it, this ensures that the clips play at the highest possible quality without becoming blurry when scaled.
 3. You may also want to consider enabling "Shutdown source when not visible" and "Refresh browser when scene becomes active" for the most flexibility.
-4. If You want to have a desciption alongside the player, add the `clipDescription.html` file as a Browser Source similarly to the `clipPlayer.html` file. Adjust the Browser Source settings accordingly.
+4. If You want to have a description alongside the player, add the `clipDescription.html` file as a Browser Source similarly to the `clipPlayer.html` file. Adjust the Browser Source settings accordingly.
 
 ---
 ## Optional functionality
@@ -41,7 +58,7 @@ You may also add a `filter.txt` file next to other files. Each line in this file
 You may also add a `aliases.txt` file next to other files. This file is used to change names that are shown in the description. Format: `<creator_name> = <displayed_name>`
 
 ---
-## Manual `config.txt` preparation (i recommend using `configurator.html` instead)
+## Manual `config.txt` preparation
 
 1. Open the `config.txt` file in a text editor of your choice.
 2. Add `CLIENT_ID = `, `CLIENT_SECRET = ` and `BROADCASTER_NAME = ` lines to the `config.txt` file.
@@ -52,21 +69,20 @@ You may also add a `aliases.txt` file next to other files. This file is used to 
 
 ### Config options
 
-| Key                | Values           | Required? | Default | Description                                                       |
-|--------------------|------------------|-----------|---------|-------------------------------------------------------------------|
-| CLIENT_ID          | Client ID        | Yes       | -       | "Client ID" retrieved from https://dev.twitch.tv/                 |
-| CLIENT_SECRET      | Client Secret    | Yes       | -       | "Client Secret" retrieved from https://dev.twitch.tv/             |
-| BROADCASTER_NAME   | Broadcaster name | Yes       | -       | Your name on Twitch                                               |
-| TOP_OR_RANDOM      | top/random       | No        | random  | Prioritise top clips or get random clips out of your top 1000     |
-| VOLUME_PERCENT     | 0 to 100         | No        | 50      | Clip playing volume percentage                                    |
-| SHOW_CLIP_CREATORS | true/false       | No        | true    | Decide whether to show a clip's creator                           |
-| SHOW_CLIP_GAME     | true/false       | No        | true    | Decide whether to show a clip's game                              |
-| SHOW_CLIP_TITLE    | true/false       | No        | true    | Decide whether to show a clip's title                             |
-| MAX_CLIPS          | Number           | No        | 1000    | Maximum amount of clips to store at the same time                 |
-| DESC_AUTHOR_PREFIX | Text             | No        | -       | Text that will be shown in the description before the author name |
-| DESC_GAME_PREFIX   | Text             | No        | -       | Text that will be shown in the description before the game title  |
+| Key                | Values           | Required | Default  | Description                                                |
+|--------------------|------------------|----------|----------|------------------------------------------------------------|
+| CLIENT_ID          | Client ID        | ✅        | -        | "Client ID" retrieved from https://dev.twitch.tv/          |
+| CLIENT_SECRET      | Client Secret    | ✅        | -        | "Client Secret" retrieved from https://dev.twitch.tv/      |
+| BROADCASTER_NAME   | Broadcaster name | ✅        | -        | Your Twitch channel name                                   |
+| TOP_OR_RANDOM      | `top`/`random`   | ❌        | `random` | Choose whether to prefer top clips or randomly picked ones |
+| VOLUME_PERCENT     | `0` to `100`     | ❌        | `50`     | Volume level for playback                                  |
+| SHOW_CLIP_CREATORS | `true`/`false`   | ❌        | `true`   | Display the clip creator name                              |
+| SHOW_CLIP_GAME     | `true`/`false`   | ❌        | `true`   | Display the game associated with the clip                  |
+| SHOW_CLIP_TITLE    | `true`/`false`   | ❌        | `true`   | Display the title of the clip                              |
+| MAX_CLIPS          | number           | ❌        | `1000`   | Number of clips stored in memory                           |
+| DESC_AUTHOR_PREFIX | text             | ❌        | -        | 	Optional text prefix before the author name               |
+| DESC_GAME_PREFIX   | text             | ❌        | -        | Optional text prefix before the game title                 |
 
----
 ## Example configuration files
 
 ### config.txt
@@ -101,3 +117,71 @@ ___W31RD_N4M3___ = Casual Name :)
 hate
 bad
 ```
+
+## Troubleshooting
+
+### Nothing plays in OBS
+- Make sure the `clipPlayer.html` file is added as a **local file** in the Browser Source settings.
+- Confirm that `config.txt` exists and is placed in the **same folder** as `clipPlayer.html`.
+- Double-check `CLIENT_ID`, `CLIENT_SECRET`, and `BROADCASTER_NAME` in your `config.txt`.
+- Open `clipPlayer.html` in a browser directly (outside OBS) to see if any errors appear in the console (`F12` → Console tab).
+
+---
+
+### Clips are blurry or low resolution
+- In OBS, **don’t scale** the browser source manually.
+- Instead, set the exact **resolution** in the Browser Source properties (e.g., 1920x1080).
+- Ensure Twitch clips themselves are of good quality — old or low-view clips may be blurry.
+
+---
+
+### Clips don’t change / stuck on one clip
+- Enable “**Refresh browser when scene becomes active**” in Browser Source settings.
+- Try switching between `TOP_OR_RANDOM = top` and `random` to see if it changes behavior.
+- Try clearing the cache: delete the `clips.json` or similar stored data (if applicable).
+
+---
+
+### OBS shows a white or black box
+- This usually means a JavaScript error or the file couldn't be loaded.
+- Open `clipPlayer.html` in your browser and press `F12` to check for any JavaScript errors.
+- Make sure you're not missing any required files (`config.txt`, etc.).
+- Check that your antivirus or Windows Defender isn’t blocking local HTML access.
+
+---
+
+### Twitch authentication fails
+- Ensure the `CLIENT_ID` and `CLIENT_SECRET` are copied correctly — no extra spaces.
+- Make sure your Twitch app is still valid (check the developer console).
+- Try generating a new Client Secret if it seems invalid.
+
+---
+
+### No sound from clips
+- OBS browser sources are sometimes muted by default. Right-click the source → **Properties** → check the audio monitoring setting.
+- Check `VOLUME_PERCENT` in `config.txt` and increase it (e.g., to 80).
+- Make sure your OBS Audio settings include Browser Source output.
+
+---
+
+### Filters not working (filter.txt)
+- Remember: `filter.txt` is **case-sensitive**.
+- It blocks clips that contain **any** of the listed words/phrases in the **title**.
+- Use one filter per line, no commas.
+
+---
+
+### Clip descriptions don’t match expected names
+- Check your `aliases.txt` file formatting. It should be: `original_name = custom_display_name`
+- Make sure there are no extra spaces or tabs.
+
+
+## Screenshots
+
+### 
+![OBS screenshot](images/obs_example.png)
+
+![configurator.html screenshot](images/configurator.png)
+
+
+[Go to top](#table-of-contents)
