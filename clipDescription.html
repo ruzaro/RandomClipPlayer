@@ -1,9 +1,116 @@
 ﻿<html lang="en">
 
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twitch Clip Description</title>
+    <style>
+        :root {
+            --text-color: white;
+            --text-shadow-color: rgba(0, 0, 0, 0.8);
+            --background-color: rgba(0, 0, 0, 0.5);
+            --title-size: 2.5rem;
+            --info-size: 1.8rem;
+            --padding: 12px;
+            --border-radius: 8px;
+            --animation-speed: 0.5s;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            overflow: hidden;
+        }
+
+        .container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: flex-start;
+            padding: 20px;
+        }
+
+        .description-container {
+            max-width: 90%;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity var(--animation-speed) ease, transform var(--animation-speed) ease;
+        }
+
+        .description-container.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .clip-title, .clip-info {
+            background-color: var(--background-color);
+            color: var(--text-color);
+            padding: var(--padding);
+            border-radius: var(--border-radius);
+            margin-bottom: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            word-wrap: break-word;
+            max-width: 100%;
+            display: inline-block;
+        }
+
+        .clip-title {
+            font-size: var(--title-size);
+            font-weight: bold;
+            text-shadow: 0 2px 4px var(--text-shadow-color);
+        }
+
+        .clip-info {
+            font-size: var(--info-size);
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .info-row {
+            display: flex;
+            align-items: center;
+        }
+
+        .info-label {
+            font-weight: bold;
+            margin-right: 5px;
+        }
+
+        @media (max-width: 768px) {
+            :root {
+                --title-size: 1.8rem;
+                --info-size: 1.4rem;
+                --padding: 8px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            :root {
+                --title-size: 1.5rem;
+                --info-size: 1.2rem;
+                --padding: 6px;
+            }
+        }
+    </style>
+</head>
+
 <body>
+<div class="container">
+    <div id="description" class="description-container"></div>
+</div>
+
 <script src="common.js"></script>
 <script>
-    const ALIASES_FILE_PATH = 'aliases.txt'
+    const ALIASES_FILE_PATH = 'aliases.txt';
 
     class DescriptionConfig {
         constructor(showCreator, showGame, showTitle, aliases, authorPrefix, gamePrefix) {
@@ -11,25 +118,29 @@
             this.showGame = showGame;
             this.showTitle = showTitle;
             this.aliases = aliases;
-            this.authorPrefix = authorPrefix;
-            this.gamePrefix = gamePrefix;
+            this.authorPrefix = authorPrefix || '';
+            this.gamePrefix = gamePrefix || '';
         }
 
         static async create(globalConfig) {
             let aliases = [];
 
-            if (await fileExists(ALIASES_FILE_PATH)){
-                let text = await (await fetch(ALIASES_FILE_PATH)).text();
+            if (await fileExists(ALIASES_FILE_PATH)) {
+                try {
+                    let text = await (await fetch(ALIASES_FILE_PATH)).text();
+                    const lines = text.split('\n');
 
-                const lines = text.split('\n');
+                    for (let line of lines) {
+                        const s = line.split(/=(.*)/s);
+                        if (s.length < 2) continue;
 
-                for (let line of lines) {
-                    const s = line.split(/=(.*)/s)
+                        const key = s[0].trim().replace(/\r/g, "");
+                        const value = s[1].trim().replace(/\r/g, "");
 
-                    const key = s[0].trim().replace(/\r/g, "");
-                    const value = s[1].trim().replace(/\r/g, "");
-
-                    aliases.push([key, value]);
+                        aliases.push([key, value]);
+                    }
+                } catch (error) {
+                    console.error("Error loading aliases:", error);
                 }
             } else {
                 console.log("Missing file: " + ALIASES_FILE_PATH + ". Aliases will not be used.");
@@ -49,117 +160,155 @@
             let value = defaultValue;
             let configValue = globalConfig[key];
             if (configValue === "true") {
-                value = true
+                value = true;
             } else if (configValue === "false") {
-                value = false
+                value = false;
             }
             return value;
         }
     }
 
     class Description {
-        constructor(descriptionConfig) {
+        constructor(descriptionConfig, container) {
             this.config = descriptionConfig;
+            this.container = container;
         }
 
-        static async create(globalConfig) {
+        static async create(globalConfig, container) {
             let descriptionConfig = await DescriptionConfig.create(globalConfig);
-
-            return new Description(descriptionConfig);
+            return new Description(descriptionConfig, container);
         }
 
-        set(text) {
-            const descriptionText = document.getElementById("description")
-            descriptionText.innerText = text
+        clear() {
+            this.container.innerHTML = '';
+            this.container.classList.remove('visible');
         }
 
         setFromClip(clip) {
-            let finalText = ''
-
-            if (this.config.showTitle) {
-                finalText += `\"${clip.title}\"`
+            if (!clip) {
+                this.clear();
+                return;
             }
 
-            if (this.config.showCreator) {
-                let creator = clip.creator_name;
-                const creator_lower = creator.toLowerCase();
+            // Clear previous content
+            this.container.innerHTML = '';
 
-                for (let i = 0; i < this.config.aliases.length; ++i) {
-                    const alias_list = this.config.aliases[i];
+            // Add title if configured
+            if (this.config.showTitle && clip.title) {
+                let titleElement = document.createElement('div');
+                titleElement.className = 'clip-title';
+                titleElement.textContent = clip.title;
+                this.container.appendChild(titleElement);
+            }
 
-                    const name = alias_list[0].toLowerCase();
-                    const alias = alias_list[1];
+            // Create info container for author and game
+            if ((this.config.showCreator && clip.creator_name) ||
+                (this.config.showGame && clip.gameName)) {
+                let infoElement = document.createElement('div');
+                infoElement.className = 'clip-info';
 
-                    if (creator_lower.includes(name)) {
-                        creator = alias;
-                        break;
-                    }
+                // Add creator if configured
+                if (this.config.showCreator && clip.creator_name) {
+                    let creator = this.getAliasedCreator(clip.creator_name);
+                    let creatorRow = document.createElement('div');
+                    creatorRow.className = 'info-row';
+
+                    let labelSpan = document.createElement('span');
+                    labelSpan.className = 'info-label';
+                    labelSpan.textContent = this.config.authorPrefix;
+
+                    let valueSpan = document.createElement('span');
+                    valueSpan.textContent = creator;
+
+                    creatorRow.appendChild(labelSpan);
+                    creatorRow.appendChild(valueSpan);
+                    infoElement.appendChild(creatorRow);
                 }
 
-                finalText += `\n${this.config.authorPrefix} ${creator}`
+                // Add game if configured
+                if (this.config.showGame && clip.gameName) {
+                    let gameRow = document.createElement('div');
+                    gameRow.className = 'info-row';
+
+                    let labelSpan = document.createElement('span');
+                    labelSpan.className = 'info-label';
+                    labelSpan.textContent = this.config.gamePrefix;
+
+                    let valueSpan = document.createElement('span');
+                    valueSpan.textContent = clip.gameName;
+
+                    gameRow.appendChild(labelSpan);
+                    gameRow.appendChild(valueSpan);
+                    infoElement.appendChild(gameRow);
+                }
+
+                this.container.appendChild(infoElement);
             }
 
-            if (this.config.showGame) {
-                finalText += `\n${this.config.gamePrefix} ${clip.gameName}`
+            // Show with animation
+            setTimeout(() => {
+                this.container.classList.add('visible');
+            }, 50);
+        }
+
+        getAliasedCreator(creator) {
+            if (!creator) return '';
+
+            const creator_lower = creator.toLowerCase();
+
+            for (let i = 0; i < this.config.aliases.length; ++i) {
+                const alias_list = this.config.aliases[i];
+                const name = alias_list[0].toLowerCase();
+                const alias = alias_list[1];
+
+                if (creator_lower.includes(name)) {
+                    return alias;
+                }
             }
 
-            this.set(finalText);
+            return creator;
         }
     }
 
     async function run() {
-        let globalConfig = await readGlobalConfig();
+        let container = document.getElementById("description");
 
-        let description = await Description.create(globalConfig);
+        try {
+            let globalConfig = await readGlobalConfig();
+            let description = await Description.create(globalConfig, container);
 
-        description.set('');
+            description.clear();
 
-        const channel = new BroadcastChannel(BROADCAST_CHANNEL_NAME);
+            const channel = new BroadcastChannel(BROADCAST_CHANNEL_NAME);
 
-        channel.onmessage = (event) => {
-            let data = event.data;
+            channel.onmessage = (event) => {
+                try {
+                    let data = event.data;
 
-            if (data === "clear") {
-                description.set('');
-            } else {
-                let clip = JSON.parse(data);
-
-                description.setFromClip(clip);
-            }
-        };
+                    if (data === "clear") {
+                        description.clear();
+                    } else {
+                        let clip;
+                        try {
+                            clip = JSON.parse(data);
+                            description.setFromClip(clip);
+                        } catch (parseError) {
+                            console.error("Error parsing clip data:", parseError);
+                            description.clear();
+                        }
+                    }
+                } catch (error) {
+                    console.error("Error processing message:", error);
+                }
+            };
+        } catch (error) {
+            console.error("Error initializing description:", error);
+            container.innerHTML = `<div class="clip-title" style="color: #ff5555">Error: ${error.message}</div>`;
+        }
     }
 
     window.addEventListener("load", run);
-
 </script>
-<div class="container">
-    <div id="description" class="overlayText"></div>
-</div>
 </body>
-
-<head>
-    <style>
-        .container {
-            position: relative;
-            width: 100%;
-            height: 100%;
-        }
-
-        .overlayText {
-            position: absolute;
-            top: calc(0px);
-            left: calc((100vw - min(100vh/9, 100vw/16)*16)/2 + 1.2vw);
-            color: white;
-            text-shadow: 1px 0 0 #000, 0 -1px 0 #000, 0 1px 0 #000, -1px 0 0 #000;
-            font-size: xxx-large;
-            white-space: pre-wrap;      /* CSS3 */
-            white-space: -moz-pre-wrap; /* Firefox */
-            white-space: -pre-wrap;     /* Opera <7 */
-            white-space: -o-pre-wrap;   /* Opera 7 */
-            word-wrap: break-word;      /* IE */
-        }
-    </style>
-    <title>Twitch Clip Description</title>
-</head>
 
 </html>
