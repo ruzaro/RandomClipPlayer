@@ -58,14 +58,16 @@ If you have already created one and have the Client ID and Client Secret, skip t
   - ⚠️ **Important**: Save these somewhere safe! You'll need them in the next step.
 
 ### Step 3: Set Up Your Configuration
-0. You can also fill the `config.txt` file manually based on the information below (Not recommended).
 1. Open the `configurator.html` file in your web browser
+  - **Important**: This step ***DOESN'T*** create the required `config.txt` file that the player needs to function. It needs to exists already or be created during file selection!
+  - Without a properly configured `config.txt` file, the player will show an error message
 2. Fill in the required information:
   - **Client ID**: Paste your Client ID from Step 2
   - **Client Secret**: Paste your Client Secret from Step 2
   - **Twitch Channel Name**: Your Twitch username
 3. Adjust any other settings as desired
 4. Click "Select config.txt" to save your settings
+  - Make sure to move this file in the same folder as the other player files
 
 ### Step 4: Add to OBS
 1. Open OBS Studio
@@ -93,12 +95,15 @@ You may also add a `aliases.txt` file next to other files. This file is used to 
 ---
 ## Manual `config.txt` preparation
 
-1. Open the `config.txt` file in a text editor of your choice.
-2. Add `CLIENT_ID = `, `CLIENT_SECRET = ` and `BROADCASTER_NAME = ` lines to the `config.txt` file.
-3. Enter the Client ID and Client Secret on the `CLIENT_ID = ` and `CLIENT_SECRET = ` lines to the right of `=` respectively.
-4. Enter your Twitch username on `BROADCASTER_NAME = ` line to the right of `=`.
-5. Add any of the optional configuration lines to the `config.txt` file. Check all possible options down below.
-6. Once finished, save and close the `config.txt` file.
+**Note**: The `config.txt` file is required for the player to function. While using the `configurator.html` is the recommended way to fill this file, you can also create it manually following these steps:
+
+1. Create or find the `config.txt` file.
+2. Open the `config.txt` file in a text editor of your choice.
+3. Add `CLIENT_ID = `, `CLIENT_SECRET = ` and `BROADCASTER_NAME = ` lines to the `config.txt` file.
+4. Enter the Client ID and Client Secret on the `CLIENT_ID = ` and `CLIENT_SECRET = ` lines to the right of `=` respectively.
+5. Enter your Twitch username on `BROADCASTER_NAME = ` line to the right of `=`.
+6. Add any of the optional configuration lines to the `config.txt` file. Check all possible options down below.
+7. Once finished, save and close the `config.txt` file.
 
 ### Config options
 
@@ -230,6 +235,16 @@ This usually means one of these problems:
 ### Clip descriptions don’t match expected names
 - Check your `aliases.txt` file formatting. It should be: `original_name = custom_display_name`
 - Make sure there are no extra spaces or tabs.
+
+---
+
+### Browser CORS restrictions when opening files locally
+
+- **Issue**: If you try to open `clipPlayer.html` directly in a browser (by double-clicking the file), it won't work due to CORS restrictions.
+- **Solution**: This is expected behavior. The player is designed to work when:
+  - Added as a Browser Source in OBS (as described in the setup guide)
+  - OR served through a local web server
+- **Technical explanation**: For security reasons, browsers restrict local HTML files from loading other local files using JavaScript's fetch API.
 
 
 ## Frequently Asked Questions

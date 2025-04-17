@@ -157,13 +157,19 @@
             <strong>Get Twitch API Credentials</strong> - Visit <a href="https://dev.twitch.tv/" target="_blank">dev.twitch.tv</a>, create an application, and get your Client ID and Secret.
         </div>
         <div class="setup-step">
+            <strong>Select configuration</strong> - Click "Select config.txt" to choose where to save your settings. You need to select an existing file or create a new one during selection.
+        </div>
+        <div class="setup-step">
             <strong>Configure Settings</strong> - Fill out the form below with your credentials and preferences.
         </div>
         <div class="setup-step">
-            <strong>Save Configuration</strong> - Click "Select config.txt" to choose where to save your settings.
+            <strong>Save Configuration</strong> - Click "Save Configuration" to save configuration into selected file.
         </div>
         <div class="setup-step">
-            <strong>Add to OBS</strong> - Add clipPlayer.html as a Browser Source in OBS (make sure to check "Local file").
+            <strong>Add player to OBS</strong> - Add clipPlayer.html as a Browser Source in OBS (make sure to check "Local file").
+        </div>
+        <div class="setup-step">
+            <strong>(Optional) Add description to OBS</strong> - Add clipDescription.html as a Browser Source in OBS (make sure to check "Local file").
         </div>
     </div>
 </div>
@@ -171,7 +177,7 @@
 <div class="card">
     <div id="fileSelection">
         <button id="selectFile">📂 Select config.txt</button>
-        <p class="help-text">Click to select an existing config.txt file or create a new one.</p>
+        <p class="help-text">Click to select an existing config.txt file or create a new one. <strong>This file is required</strong> for the player to function.</p>
     </div>
 
     <div id="fileForm">
