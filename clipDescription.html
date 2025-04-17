@@ -58,27 +58,33 @@
             margin-bottom: 10px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             word-wrap: break-word;
-            max-width: 100%;
-            display: inline-block;
         }
 
         .clip-title {
             font-size: var(--title-size);
             font-weight: bold;
             text-shadow: 0 2px 4px var(--text-shadow-color);
+            max-width: 100%;
+            display: block;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .clip-info {
             font-size: var(--info-size);
-            display: flex;
             flex-direction: column;
             gap: 5px;
+            width: fit-content;
+            display: flex;
         }
 
         .error-message {
             font-size: var(--info-size);
             color: #ff5555;
             font-weight: bold;
+            max-width: 100%;
+            display: inline-block;
         }
 
         .info-row {
@@ -216,6 +222,17 @@
                 titleElement.className = 'clip-title';
                 titleElement.textContent = clip.title;
                 this.container.appendChild(titleElement);
+
+                setTimeout(() => {
+                    const originalWidth = titleElement.scrollWidth;
+                    const containerWidth = titleElement.clientWidth;
+
+                    if (originalWidth > containerWidth) {
+                        const scaleFactor = Math.min(0.9, containerWidth / originalWidth);
+                        const newSize = parseFloat(getComputedStyle(titleElement).fontSize) * scaleFactor;
+                        titleElement.style.fontSize = `${newSize}px`;
+                    }
+                }, 0);
             }
 
             if ((this.config.showCreator && clip.creator_name) ||
