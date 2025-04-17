@@ -50,7 +50,7 @@
             transform: translateY(0);
         }
 
-        .clip-title, .clip-info {
+        .clip-title, .clip-info, .error-message {
             background-color: var(--background-color);
             color: var(--text-color);
             padding: var(--padding);
@@ -73,6 +73,12 @@
             display: flex;
             flex-direction: column;
             gap: 5px;
+        }
+
+        .error-message {
+            font-size: var(--info-size);
+            color: #ff5555;
+            font-weight: bold;
         }
 
         .info-row {
@@ -184,16 +190,27 @@
             this.container.classList.remove('visible');
         }
 
+        showError(message) {
+            this.container.innerHTML = '';
+
+            let errorElement = document.createElement('div');
+            errorElement.className = 'error-message';
+            errorElement.textContent = message;
+            this.container.appendChild(errorElement);
+
+            setTimeout(() => {
+                this.container.classList.add('visible');
+            }, 50);
+        }
+
         setFromClip(clip) {
             if (!clip) {
                 this.clear();
                 return;
             }
 
-            // Clear previous content
             this.container.innerHTML = '';
 
-            // Add title if configured
             if (this.config.showTitle && clip.title) {
                 let titleElement = document.createElement('div');
                 titleElement.className = 'clip-title';
@@ -201,13 +218,11 @@
                 this.container.appendChild(titleElement);
             }
 
-            // Create info container for author and game
             if ((this.config.showCreator && clip.creator_name) ||
                 (this.config.showGame && clip.gameName)) {
                 let infoElement = document.createElement('div');
                 infoElement.className = 'clip-info';
 
-                // Add creator if configured
                 if (this.config.showCreator && clip.creator_name) {
                     let creator = this.getAliasedCreator(clip.creator_name);
                     let creatorRow = document.createElement('div');
@@ -225,7 +240,6 @@
                     infoElement.appendChild(creatorRow);
                 }
 
-                // Add game if configured
                 if (this.config.showGame && clip.gameName) {
                     let gameRow = document.createElement('div');
                     gameRow.className = 'info-row';
@@ -245,7 +259,6 @@
                 this.container.appendChild(infoElement);
             }
 
-            // Show with animation
             setTimeout(() => {
                 this.container.classList.add('visible');
             }, 50);
@@ -285,17 +298,26 @@
                 try {
                     let data = event.data;
 
-                    if (data === "clear") {
+                    if (data === MessageType.CLEAR || data === "clear") {
                         description.clear();
-                    } else {
-                        let clip;
-                        try {
-                            clip = JSON.parse(data);
-                            description.setFromClip(clip);
-                        } catch (parseError) {
-                            console.error("Error parsing clip data:", parseError);
+                        return;
+                    }
+
+                    try {
+                        const message = JSON.parse(data);
+
+                        if (message.type === MessageType.CLEAR) {
                             description.clear();
+                        } else if (message.type === MessageType.CLIP_DATA) {
+                            description.setFromClip(message.data);
+                        } else if (message.type === MessageType.ERROR) {
+                            description.showError(message.message);
+                        } else {
+                            throw new Error("Unknown message format: " + message);
                         }
+                    } catch (parseError) {
+                        console.error("Error parsing message data:", parseError);
+                        description.clear();
                     }
                 } catch (error) {
                     console.error("Error processing message:", error);

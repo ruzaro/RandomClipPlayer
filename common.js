@@ -4,6 +4,12 @@ const BROADCAST_CHANNEL_NAME = "clip_player_description_sync"
 
 const CHECKBOX_KEYS = ["SHOW_CLIP_CREATORS", "SHOW_CLIP_GAME", "SHOW_CLIP_TITLE"]
 
+const MessageType = {
+    CLEAR: 'clear',
+    CLIP_DATA: 'clip_data',
+    ERROR: 'error'
+};
+
 async function fileExists(url) {
     try {
         const response = await fetch(url, { method: "HEAD" });

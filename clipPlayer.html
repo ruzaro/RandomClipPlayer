@@ -1,32 +1,123 @@
 ﻿<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twitch Clip Player</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+        }
+
+        .player {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            opacity: 0;
+            transition: opacity 1s ease;
+        }
+
+        .player.active {
+            opacity: 1;
+            z-index: 2;
+        }
+
+        .player.inactive {
+            opacity: 0;
+            z-index: 1;
+        }
+
+        .loader-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 10;
+            opacity: 1;
+            transition: opacity 0.5s ease;
+        }
+
+        .loader-container.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .loader {
+            border: 16px solid rgba(255, 255, 255, 0.2);
+            border-top: 16px solid #fff;
+            border-radius: 50%;
+            width: 120px;
+            height: 120px;
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
 <body>
+<div class="container">
+    <div id="loaderContainer" class="loader-container">
+        <div class="loader"></div>
+    </div>
+    <video id="player1" class="player" playsinline></video>
+    <video id="player2" class="player" playsinline></video>
+</div>
 
 <script src="common.js"></script>
-
 <script>
-    const FILTER_FILE_PATH = 'filter.txt'
+    const FILTER_FILE_PATH = 'filter.txt';
+    const RETRY_COUNT = 3;
+    const RETRY_DELAY = 1000;
 
+    /**
+     * Handles authentication and API requests to Twitch
+     */
     class AuthFetch {
         constructor(clientId, clientSecret, broadcasterName) {
             this.clientId = clientId;
             this.clientSecret = clientSecret;
             this.broadcasterName = broadcasterName;
+            this.retryCount = RETRY_COUNT;
+            this.retryDelay = RETRY_DELAY;
         }
 
         static async create(globalConfig) {
-            let clientId = globalConfig["CLIENT_ID"];
-            if (clientId === null) {
+            const clientId = globalConfig["CLIENT_ID"];
+            if (!clientId) {
                 throw new Error("CLIENT_ID key missing in " + CONFIG_FILE_PATH);
             }
 
-            let clientSecret = globalConfig["CLIENT_SECRET"];
-            if (clientSecret === null) {
+            const clientSecret = globalConfig["CLIENT_SECRET"];
+            if (!clientSecret) {
                 throw new Error("CLIENT_SECRET key missing in " + CONFIG_FILE_PATH);
             }
 
-            let broadcasterName = globalConfig["BROADCASTER_NAME"];
-            if (broadcasterName === null) {
+            const broadcasterName = globalConfig["BROADCASTER_NAME"];
+            if (!broadcasterName) {
                 throw new Error("BROADCASTER_NAME key missing in " + CONFIG_FILE_PATH);
             }
 
@@ -34,68 +125,112 @@
         }
 
         async prepareOAuth() {
-            this.oAuth = await this.prepareCredentials();
-            this.broadcasterId = await this.prepareBroadcasterId();
+            try {
+                this.oAuth = await this.prepareCredentials();
+                this.broadcasterId = await this.prepareBroadcasterId();
+            } catch (error) {
+                throw new Error(`Authentication failed: ${error.message}`);
+            }
         }
 
         async prepareCredentials() {
-            const response = await fetch(`https://id.twitch.tv/oauth2/token?client_id=${this.clientId}&client_secret=${this.clientSecret}&grant_type=client_credentials`, {
-                method: "POST"
+            return await this.fetchWithRetry(async () => {
+                const response = await fetch(`https://id.twitch.tv/oauth2/token?client_id=${this.clientId}&client_secret=${this.clientSecret}&grant_type=client_credentials`, {
+                    method: "POST"
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to get OAuth token: ${response.status} ${response.statusText}`);
+                }
+
+                return await response.json();
             });
-            return await response.json();
         }
 
         async prepareBroadcasterId() {
             const response = await this.fetch(`https://api.twitch.tv/helix/users?login=${this.broadcasterName}`);
-            return (await response.json()).data[0].id;
+            const data = await response.json();
+
+            if (!data.data || data.data.length === 0) {
+                throw new Error(`Broadcaster not found: ${this.broadcasterName}`);
+            }
+
+            return data.data[0].id;
         }
 
         async fetch(url, options) {
-            options = options || {};
-            options.headers = options.headers || {};
+            return await this.fetchWithRetry(async () => {
+                options = options || {};
+                options.headers = options.headers || {};
 
-            options.headers["Client-ID"] = this.clientId;
-            options.headers["Authorization"] = `Bearer ${this.oAuth.access_token}`;
+                options.headers["Client-ID"] = this.clientId;
+                options.headers["Authorization"] = `Bearer ${this.oAuth.access_token}`;
 
-            return await fetch(url, options);
+                const response = await fetch(url, options);
+
+                if (!response.ok) {
+                    throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+                }
+
+                return response;
+            });
+        }
+
+        async fetchWithRetry(fetchFunc) {
+            let lastError;
+
+            for (let attempt = 0; attempt < this.retryCount; attempt++) {
+                try {
+                    return await fetchFunc();
+                } catch (error) {
+                    lastError = error;
+
+                    if (attempt < this.retryCount - 1) {
+                        await new Promise(resolve => setTimeout(resolve, this.retryDelay));
+                    }
+                }
+            }
+
+            throw lastError;
         }
     }
 
-    const Mode = {
-        Top: 'Top',
-        Random: 'Random'
-    };
-
+    /**
+     * Configuration for the clips handler
+     */
     class ClipsHandlerConfig {
         constructor(topOrRandom, maxClips) {
             this.maxClips = maxClips;
             this.topOrRandom = topOrRandom;
-            this.wordsToFilter = []
+            this.wordsToFilter = [];
         }
 
         static async create(globalConfig) {
             let topOrRandom = globalConfig["TOP_OR_RANDOM"];
 
-            // TOP_OR_RANDOM can be either Mode.Top to prioritise top clips or Mode.Random to get random clips out of your top 1000
-            // note that Mode.Random clip mode requires a tiny bit of buffer time when the page is first loaded to collect a list of clips
-
             if (topOrRandom === "top") {
-                topOrRandom = Mode.Top;
+                topOrRandom = 'Top';
             } else {
-                topOrRandom = Mode.Random;
+                topOrRandom = 'Random';
             }
 
             const maxClips = parseNumber(globalConfig["MAX_CLIPS"], 1000);
 
             let config = new ClipsHandlerConfig(topOrRandom, maxClips);
 
-            if (await fileExists(FILTER_FILE_PATH)){
-                let text = await (await fetch(FILTER_FILE_PATH)).text();
+            if (await fileExists(FILTER_FILE_PATH)) {
+                try {
+                    let text = await (await fetch(FILTER_FILE_PATH)).text();
+                    const lines = text.split('\n');
 
-                const lines = text.split('\n');
-
-                for (let line of lines) {
-                    config.wordsToFilter.push(line);
+                    for (let line of lines) {
+                        const trimmedLine = line.trim().replace(/\r/g, "");
+                        if (trimmedLine) {
+                            config.wordsToFilter.push(trimmedLine.toLowerCase());
+                        }
+                    }
+                } catch (error) {
+                    console.error("Error loading filter file:", error);
                 }
             }
 
@@ -103,17 +238,20 @@
         }
     }
 
+    /**
+     * Handles fetching and managing clips
+     */
     class ClipsHandler {
         constructor(authFetch, clipsHandlerConfig) {
             this.authFetch = authFetch;
-            this.clipsPagination = null
-            this.clipsData = []
+            this.clipsPagination = null;
+            this.clipsData = [];
             this.config = clipsHandlerConfig;
+            this.playedClips = [];
         }
 
         static async create(globalConfig) {
             let clipsHandlerConfig = await ClipsHandlerConfig.create(globalConfig);
-
             let authFetch = await AuthFetch.create(globalConfig);
 
             await authFetch.prepareOAuth();
@@ -122,89 +260,138 @@
         }
 
         async fetchTopClips() {
-            if (this.clipsData.length !== 0) return []
+            if (this.clipsData.length !== 0) return [];
 
-            let response = await this.authFetch.fetch(`https://api.twitch.tv/helix/clips?first=100&broadcaster_id=${this.authFetch.broadcasterId}${this.clipsPagination ? `&after=${this.clipsPagination}` : ""}`);
-            let body = await response.json();
+            try {
+                let response = await this.authFetch.fetch(
+                    `https://api.twitch.tv/helix/clips?first=100&broadcaster_id=${this.authFetch.broadcasterId}${this.clipsPagination ? `&after=${this.clipsPagination}` : ""}`
+                );
+                let body = await response.json();
 
-            this.clipsPagination = body.pagination.cursor;
+                if (body.pagination && body.pagination.cursor) {
+                    this.clipsPagination = body.pagination.cursor;
+                } else {
+                    this.clipsPagination = null;
+                }
 
-            return this.filterClips(body.data);
+                return this.filterClips(body.data || []);
+            } catch (error) {
+                console.error("Error fetching top clips:", error);
+                throw new Error(`Failed to fetch clips: ${error.message}`);
+            }
         }
 
         async fetchRandomClips() {
             if (!this.clipsPagination && this.clipsData.length > 0) return [];
 
-            let response = await this.authFetch.fetch(`https://api.twitch.tv/helix/clips?first=100&broadcaster_id=${this.authFetch.broadcasterId}${this.clipsPagination ? `&after=${this.clipsPagination}` : ""}`);
-            let body = await response.json();
+            try {
+                let response = await this.authFetch.fetch(
+                    `https://api.twitch.tv/helix/clips?first=100&broadcaster_id=${this.authFetch.broadcasterId}${this.clipsPagination ? `&after=${this.clipsPagination}` : ""}`
+                );
+                let body = await response.json();
 
-            this.clipsPagination = body.pagination.cursor;
+                if (body.pagination && body.pagination.cursor) {
+                    this.clipsPagination = body.pagination.cursor;
+                } else {
+                    this.clipsPagination = null;
+                }
 
-            return this.filterClips(body.data);
+                return this.filterClips(body.data || []);
+            } catch (error) {
+                console.error("Error fetching random clips:", error);
+                throw new Error(`Failed to fetch clips: ${error.message}`);
+            }
         }
 
-        filterClips(clips){
-            let ret = []
+        filterClips(clips) {
+            let filteredClips = [];
             let wordsToFilter = this.config.wordsToFilter;
 
             for (let clip of clips) {
-                let title = clip.title.toLowerCase();
+                if (this.playedClips.includes(clip.id) && this.clipsData.length > 0) {
+                    continue;
+                }
 
+                let title = clip.title.toLowerCase();
                 let valid = true;
 
-                for (let k = 0; k < wordsToFilter.length; ++k){
-                    let wordToFilter = wordsToFilter[k];
-
-                    if (title.includes(wordToFilter)){
+                for (let wordToFilter of wordsToFilter) {
+                    if (title.includes(wordToFilter)) {
                         valid = false;
                         break;
                     }
                 }
 
-                if (valid){
-                    ret.push(clip);
+                if (valid) {
+                    filteredClips.push(clip);
                 }
             }
 
-            return ret;
+            return filteredClips;
         }
 
         async fetchClips() {
             if (this.clipsData.length >= this.config.maxClips) return;
 
-            let newClips = this.config.topOrRandom === Mode.Top ? await this.fetchTopClips() : await this.fetchRandomClips()
+            let newClips = this.config.topOrRandom === 'Top'
+                ? await this.fetchTopClips()
+                : await this.fetchRandomClips();
 
             for (let newClip of newClips) {
                 if (!this.clipsData.some(x => x.id === newClip.id)) {
                     this.clipsData.push(newClip);
                 }
             }
+
+            if (this.clipsData.length === 0 && !this.clipsPagination && this.playedClips.length > 0) {
+                console.log("All clips have been played, resetting history");
+                this.playedClips = [];
+
+                await this.fetchClips();
+            }
         }
 
         async getNextClip() {
-            if (this.clipsData.length === 0) return null
+            if (this.clipsData.length === 0) {
+                await this.fetchClips();
+
+                if (this.clipsData.length === 0) {
+                    throw new Error("No clips available. Try a different channel or check your filter settings.");
+                }
+            }
 
             let clipData = this.selectNextClip();
 
-            let clipInfo = await this.getClipInfo(clipData.id);
+            try {
+                let clipInfo = await this.getClipInfo(clipData.id);
+                clipData.url = await this.getDownloadUrl(clipData.id);
+                clipData.gameName = clipInfo.game ? clipInfo.game.displayName : "Unknown Game";
 
-            clipData.url = await this.getDownloadUrl(clipData.id);
-            clipData.gameName = clipInfo.game.displayName;
+                if (!this.playedClips.includes(clipData.id)) {
+                    this.playedClips.push(clipData.id);
+                }
 
-            return clipData;
+                return clipData;
+            } catch (error) {
+                console.error(`Error preparing clip ${clipData.id}:`, error);
+                this.clipsData = this.clipsData.filter(clip => clip.id !== clipData.id);
+
+                if (this.clipsData.length > 0) {
+                    return this.getNextClip();
+                } else {
+                    throw new Error(`Failed to prepare clip: ${error.message}`);
+                }
+            }
         }
 
-        selectNextClip(){
+        selectNextClip() {
             let clipData;
 
-            if (this.config.topOrRandom === Mode.Top) {
+            if (this.config.topOrRandom === 'Top') {
                 clipData = this.clipsData[0];
             } else {
-                let random = Math.floor(Math.random() * Object.keys(this.clipsData).length);
-
-                const index = Object.keys(this.clipsData)[random];
-
-                clipData = this.clipsData[index];
+                let random = Math.floor(Math.random() * this.clipsData.length);
+                clipData = this.clipsData[random];
             }
 
             this.clipsData.splice(this.clipsData.indexOf(clipData), 1);
@@ -220,16 +407,26 @@
                 variables: {}
             };
 
-            const response = await fetch(url, {
-                method: "POST",
-                headers: {
-                    "Client-ID": "kimne78kx3ncx6brgo4mv6wki5h1ko",
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(requestBody)
-            });
+            try {
+                const response = await fetch(url, {
+                    method: "POST",
+                    headers: {
+                        "Client-ID": "kimne78kx3ncx6brgo4mv6wki5h1ko",
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(requestBody)
+                });
 
-            return (await response.json()).data.clip;
+                if (!response.ok) {
+                    throw new Error(`Failed to get clip info: ${response.status} ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                return data.data.clip;
+            } catch (error) {
+                console.error("Error getting clip info:", error);
+                throw new Error(`Failed to get clip info: ${error.message}`);
+            }
         }
 
         async getClipLinks(clipId) {
@@ -246,22 +443,25 @@
                 }
             };
 
-            const response = await fetch(url, {
-                method: "POST",
-                headers: {
-                    "Client-ID": "kimne78kx3ncx6brgo4mv6wki5h1ko",
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(requestBody)
-            });
+            try {
+                const response = await fetch(url, {
+                    method: "POST",
+                    headers: {
+                        "Client-ID": "kimne78kx3ncx6brgo4mv6wki5h1ko",
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(requestBody)
+                });
 
-            const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(`Failed to get clip links: ${response.status} ${response.statusText}`);
+                }
 
-            if (data.data.clip.videoQualities && data.data.clip.videoQualities.length > 0) {
-                data.data.clip.videoQualities.sort((a, b) => b.frameHeight - a.frameHeight);
+                return await response.json();
+            } catch (error) {
+                console.error("Error getting clip links:", error);
+                throw new Error(`Failed to get clip links: ${error.message}`);
             }
-
-            return data;
         }
 
         async getDownloadUrl(clipId) {
@@ -277,171 +477,250 @@
             }
 
             const qualityMatch = clip.videoQualities[0];
-
             const downloadUrl = qualityMatch.sourceURL;
 
             return `${downloadUrl}?sig=${clip.playbackAccessToken.signature}&token=${encodeURIComponent(clip.playbackAccessToken.value)}`;
         }
     }
 
-    class Clip {
-        constructor(data) {
-            this.data = data;
-        }
-    }
-
+    /**
+     * Handles video player elements and transitions
+     */
     class PlayerHandler {
         constructor(globalConfig) {
-            const volume = parseRange(globalConfig["VOLUME_PERCENT"], 0, 100, 50);
+            this.volume = parseRange(globalConfig["VOLUME_PERCENT"], 0, 100, 50) / 100;
+            this.loaderContainer = document.getElementById("loaderContainer");
 
-            {
-                const player = document.getElementById("player1");
+            this.player1 = document.getElementById("player1");
+            this.player2 = document.getElementById("player2");
 
-                player.load();
-                player.loop = false;
-                player.controls = false;
-                player.volume = volume / 100;
+            this.setupPlayer(this.player1);
+            this.setupPlayer(this.player2);
 
-                this.current = player;
-            }
-            {
-                const player = document.getElementById("player2");
+            this.currentPlayer = this.player1;
+            this.nextPlayer = this.player2;
 
-                player.load();
-                player.loop = false;
-                player.controls = false;
-                player.volume = volume / 100;
-
-                this.next = player;
-            }
-
-            this.hide(this.current);
-            this.hide(this.next);
+            this.showLoader();
         }
 
-        addEndedListener(func){
-            this.current.addEventListener("ended", func);
-            this.next.addEventListener("ended", func);
+        setupPlayer(player) {
+            player.volume = this.volume;
+            player.loop = false;
+            player.controls = false;
+            player.muted = false;
+            player.playsInline = true;
+            player.classList.remove('active');
+            player.classList.add('inactive');
+
+            player.preload = 'metadata';
+
+            player.onerror = (e) => {
+                console.error("Video error:", e);
+            };
         }
 
-        async playClip(){
-            let temp = this.current;
-            this.current = this.next;
-            this.next = temp;
+        addEndedListener(callback) {
+            this.player1.addEventListener("ended", callback);
+            this.player2.addEventListener("ended", callback);
+        }
 
-            let player = this.current;
-            this.show(player);
-            this.hide(this.next);
+        showLoader() {
+            this.loaderContainer.classList.remove('hidden');
+        }
 
-            await player.play();
+        hideLoader() {
+            this.loaderContainer.classList.add('hidden');
+        }
+
+        async playClip() {
+            [this.currentPlayer, this.nextPlayer] = [this.nextPlayer, this.currentPlayer];
+
+            this.currentPlayer.classList.remove('inactive');
+            this.currentPlayer.classList.add('active');
+            this.nextPlayer.classList.remove('active');
+            this.nextPlayer.classList.add('inactive');
+
+            try {
+                const playPromise = this.currentPlayer.play();
+
+                if (playPromise !== undefined) {
+                    playPromise.then(() => {
+                        this.hideLoader();
+                    }).catch(error => {
+                        console.error("Play error:", error);
+                    });
+                } else {
+                    this.hideLoader();
+                }
+            } catch (error) {
+                console.error("Error playing clip:", error);
+                throw new Error(`Failed to play clip: ${error.message}`);
+            }
         }
 
         prepareNextClip(clip) {
-            let player = this.next;
+            return new Promise((resolve, reject) => {
+                try {
+                    this.nextPlayer.pause();
+                    this.nextPlayer.currentTime = 0;
 
-            player.pause();
-            player.src = clip.url;
-        }
+                    this.nextPlayer.src = clip.url;
 
-        show(player) {
-            player.style.display = 'block';
-        }
+                    const onMetadataLoaded = () => {
+                        this.nextPlayer.removeEventListener('loadedmetadata', onMetadataLoaded);
+                        resolve();
+                    };
 
-        hide(player) {
-            player.style.display = 'none';
+                    const onError = (e) => {
+                        this.nextPlayer.removeEventListener('error', onError);
+                        reject(new Error(`Failed to load video: ${this.nextPlayer.error.message}`));
+                    };
+
+                    this.nextPlayer.addEventListener('loadedmetadata', onMetadataLoaded);
+                    this.nextPlayer.addEventListener('error', onError);
+
+                    this.nextPlayer.load();
+                } catch (error) {
+                    reject(error);
+                }
+            });
         }
     }
 
-    class ClipPlayer{
+    /**
+     * Main clip player class that coordinates everything
+     */
+    class ClipPlayer {
         constructor(playerHandler, clipsHandler, channel) {
-            this.next = null;
             this.playerHandler = playerHandler;
             this.clipsHandler = clipsHandler;
             this.channel = channel;
-            this.playing = false;
-            this.fetching = null;
+            this.nextClip = null;
+            this.isPlaying = false;
+            this.isFetching = false;
+            this.hasError = false;
 
-            this.playerHandler.addEndedListener(async () => {
-                this.playing = false;
-
-                await this.fetching;
-
-                this.fetching = null;
-
-                await this.playNextClip();
+            this.playerHandler.addEndedListener(() => {
+                this.handleClipEnded();
             });
         }
 
-        async playNextClip(){
-            if (this.next === null){
-                this.channel.postMessage("clear");
-                await this.clipsHandler.fetchClips();
-                this.next = await this.clipsHandler.getNextClip();
-                this.playerHandler.prepareNextClip(this.next);
+        async handleClipEnded() {
+            this.isPlaying = false;
+
+            this.playerHandler.showLoader();
+
+            try {
+                await this.playNextClip();
+            } catch (error) {
+                this.handleError(error);
             }
-
-            this.playing = true;
-            this.fetching = this.fetchNextClips()
-            await Promise.all([this.playClip(this.next), this.fetching]);
         }
 
-        async playClip(clip){
-            await this.playerHandler.playClip(clip)
-            this.channel.postMessage(JSON.stringify(clip));
+        async start() {
+            try {
+                await this.playNextClip();
+            } catch (error) {
+                this.handleError(error);
+            }
         }
 
-        fetchNextClips() {
-            return new Promise(async (resolve, reject) => {
-                this.next = await this.clipsHandler.getNextClip();
-                this.playerHandler.prepareNextClip(this.next);
+        async playNextClip() {
+            this.playerHandler.showLoader();
 
-                const maxAttempts = 10;
-                let attempts = 0;
-                while (attempts < maxAttempts) {
-                    if (!this.playing) {
-                        resolve("Success: Condition met.");
-                        return;
-                    }
-                    await this.clipsHandler.fetchClips()
-                    ++attempts;
+            try {
+                if (!this.nextClip) {
+                    this.channel.postMessage(MessageType.CLEAR);
+
+                    await this.clipsHandler.fetchClips();
+
+                    this.nextClip = await this.clipsHandler.getNextClip();
+                    await this.playerHandler.prepareNextClip(this.nextClip);
                 }
 
-                resolve("Success: Max attempts.");
-            });
+                const currentClip = this.nextClip;
+                this.nextClip = null;
+
+                this.isPlaying = true;
+                await this.playerHandler.playClip();
+
+                this.channel.postMessage(JSON.stringify({
+                    type: MessageType.CLIP_DATA,
+                    data: currentClip
+                }));
+
+                this.prefetchNextClip();
+
+            } catch (error) {
+                this.handleError(error);
+            }
+        }
+
+        async prefetchNextClip() {
+            if (this.isFetching) return;
+            this.isFetching = true;
+
+            try {
+                await this.clipsHandler.fetchClips();
+                const nextClip = await this.clipsHandler.getNextClip();
+                await this.playerHandler.prepareNextClip(nextClip);
+                this.nextClip = nextClip;
+            } catch (error) {
+                console.error("Error prefetching next clip:", error);
+                this.nextClip = null;
+            } finally {
+                this.isFetching = false;
+            }
+        }
+
+        handleError(error) {
+            console.error("Clip player error:", error);
+
+            if (!this.hasError) {
+                this.hasError = true;
+
+                this.channel.postMessage(JSON.stringify({
+                    type: MessageType.ERROR,
+                    message: error.message
+                }));
+
+                this.playerHandler.showLoader();
+
+                setTimeout(() => {
+                    this.hasError = false;
+                    this.nextClip = null;
+                    this.start();
+                }, 5000);
+            }
         }
     }
 
     async function run() {
-        let channel = new BroadcastChannel(BROADCAST_CHANNEL_NAME);
+        const loaderContainer = document.getElementById("loaderContainer");
+        const channel = new BroadcastChannel(BROADCAST_CHANNEL_NAME);
 
-        let globalConfig = await readGlobalConfig();
+        try {
+            const globalConfig = await readGlobalConfig();
 
-        const player = new PlayerHandler(globalConfig)
+            const playerHandler = new PlayerHandler(globalConfig);
+            const clipsHandler = await ClipsHandler.create(globalConfig);
 
-        let clipsHandler = await ClipsHandler.create(globalConfig);
+            const clipPlayer = new ClipPlayer(playerHandler, clipsHandler, channel);
+            await clipPlayer.start();
 
-        let clipPlayer = new ClipPlayer(player, clipsHandler, channel);
+        } catch (error) {
+            console.error("Initialization error:", error);
 
-        await clipPlayer.playNextClip();
+            channel.postMessage(JSON.stringify({
+                type: MessageType.ERROR,
+                message: `Failed to initialize clip player: ${error.message}`
+            }));
+
+            loaderContainer.classList.remove('hidden');
+        }
     }
 
     window.addEventListener("load", run);
 </script>
-<div class="container">
-    <video id="player1" style="width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: -1;"></video>
-    <video id="player2" style="width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: -1;"></video>
-</div>
 </body>
-
-<head>
-    <style>
-        .container {
-            position: relative;
-            width: 100%;
-            height: 100%;
-        }
-    </style>
-    <title>Twitch Clip Player</title>
-</head>
-
 </html>
