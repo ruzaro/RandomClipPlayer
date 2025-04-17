@@ -288,7 +288,43 @@
 <script>
     let fileHandle = null;
 
-    // Show volume value as user adjusts slider
+    class FileForm {
+        static show() {
+            const form = document.getElementById("fileForm");
+            form.style.display = 'block';
+        }
+
+        static hide() {
+            const form = document.getElementById("fileForm");
+            form.style.display = 'none';
+        }
+    }
+
+    class Messages {
+        static error(message) {
+            const errorMessage = document.getElementById("errorMessage");
+            errorMessage.textContent = message;
+            errorMessage.style.display = "block";
+        }
+
+        static showSuccess() {
+            const successMessage = document.getElementById("successMessage");
+            successMessage.style.display = "block";
+        }
+
+        static hideSuccess() {
+            const successMessage = document.getElementById("successMessage");
+            successMessage.style.display = "none";
+        }
+
+        static hide() {
+            const errorMessage = document.getElementById("errorMessage");
+            const successMessage = document.getElementById("successMessage");
+            successMessage.style.display = "none";
+            errorMessage.style.display = "none";
+        }
+    }
+
     document.getElementById("volumeSlider").addEventListener("input", function() {
         document.getElementById("volumeDisplay").textContent = this.value + "%";
     });
@@ -315,21 +351,19 @@
             loadToForm(globalConfig);
 
             FileForm.show();
-            hideMessages();
+            Messages.hide();
         } catch (error) {
             console.error("Error selecting file:", error);
-            document.getElementById("errorMessage").textContent = "Error selecting file: " + error.message;
-            document.getElementById("errorMessage").style.display = "block";
+            Messages.error("Error selecting file: " + error.message);
         }
     });
 
     document.getElementById("configForm").addEventListener("submit", async function(e) {
         e.preventDefault();
-        hideMessages();
+        Messages.hide();
 
         try {
             if (!fileHandle) {
-                // If no file is selected, create a new one
                 fileHandle = await window.showSaveFilePicker({
                     suggestedName: 'config.txt',
                     types: [{
@@ -359,23 +393,16 @@
             await writable.write(config);
             await writable.close();
 
-            document.getElementById("successMessage").style.display = "block";
+            Messages.showSuccess();
 
-            // Hide success message after 3 seconds
             setTimeout(() => {
-                document.getElementById("successMessage").style.display = "none";
+                Messages.hideSuccess();
             }, 3000);
         } catch (error) {
             console.error("Error saving file:", error);
-            document.getElementById("errorMessage").textContent = "Error saving file: " + error.message;
-            document.getElementById("errorMessage").style.display = "block";
+            Messages.error("Error saving file: " + error.message);
         }
     });
-
-    function hideMessages() {
-        document.getElementById("successMessage").style.display = "none";
-        document.getElementById("errorMessage").style.display = "none";
-    }
 
     function loadToForm(globalConfig) {
         const form = document.getElementById("configForm");
@@ -388,28 +415,15 @@
                 input.checked = value.trim() === "true";
             } else if (input.type === "range") {
                 input.value = value.trim();
-                document.getElementById("volumeDisplay").textContent = value.trim() + "%";
             } else {
                 input.value = value.trim();
             }
         }
     }
 
-    class FileForm {
-        static show() {
-            const form = document.getElementById("fileForm");
-            form.style.display = 'block';
-        }
-
-        static hide() {
-            const form = document.getElementById("fileForm");
-            form.style.display = 'none';
-        }
-    }
-
     async function onLoad() {
         FileForm.hide();
-        hideMessages();
+        Messages.hide();
     }
 
     window.addEventListener("load", onLoad);
