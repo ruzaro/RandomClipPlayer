@@ -2,106 +2,393 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Twitch Clip Player Config</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        h1, h2 {
+            color: #6441a5;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .setup-steps {
+            counter-reset: step-counter;
+        }
+
+        .setup-step {
+            margin-bottom: 15px;
+            position: relative;
+            padding-left: 35px;
+        }
+
+        .setup-step:before {
+            content: counter(step-counter);
+            counter-increment: step-counter;
+            position: absolute;
+            left: 0;
+            top: 0;
+            background: #6441a5;
+            color: white;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 25px;
+        }
+
+        .form-section {
+            border-left: 3px solid #6441a5;
+            padding-left: 15px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .help-text {
+            font-size: 0.85em;
+            color: #666;
+            margin-top: 3px;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        input[type="range"] {
+            width: 100%;
+        }
+
+        .volume-display {
+            display: inline-block;
+            margin-left: 10px;
+            font-weight: bold;
+        }
+
+        .required-field::after {
+            content: " *";
+            color: #e53935;
+        }
+
+        button {
+            background-color: #6441a5;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #7d5bbe;
+        }
+
+        .success-message {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .error-message {
+            background-color: #e53935;
+            color: white;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .checkbox-group {
+            margin-bottom: 5px;
+        }
+
+        .checkbox-label {
+            font-weight: normal;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .checkbox-label input {
+            margin-right: 8px;
+        }
+    </style>
 </head>
 <body>
-<h1>Twitch Clip Player Config</h1>
+<h1>Twitch Clip Player Configuration</h1>
 
-<p>Select the <code>config.txt</code> file. After saving make sure you place it next to <code>clipPlayer.html</code>!</p>
-
-<div>
-    <div id="fileSelection">
-        <button id="selectFile">📂 Select config.txt</button><br><br>
+<div class="card">
+    <h2>Setup Guide</h2>
+    <div class="setup-steps">
+        <div class="setup-step">
+            <strong>Get Twitch API Credentials</strong> - Visit <a href="https://dev.twitch.tv/" target="_blank">dev.twitch.tv</a>, create an application, and get your Client ID and Secret.
+        </div>
+        <div class="setup-step">
+            <strong>Configure Settings</strong> - Fill out the form below with your credentials and preferences.
+        </div>
+        <div class="setup-step">
+            <strong>Save Configuration</strong> - Click "Select config.txt" to choose where to save your settings.
+        </div>
+        <div class="setup-step">
+            <strong>Add to OBS</strong> - Add clipPlayer.html as a Browser Source in OBS (make sure to check "Local file").
+        </div>
     </div>
+</div>
+
+<div class="card">
+    <div id="fileSelection">
+        <button id="selectFile">📂 Select config.txt</button>
+        <p class="help-text">Click to select an existing config.txt file or create a new one.</p>
+    </div>
+
     <div id="fileForm">
         <form id="configForm">
-            <label>Client ID: <input name="CLIENT_ID" required> retrieved from https://dev.twitch.tv/ </label><br><br>
-            <label>Client secret: <input name="CLIENT_SECRET" required> retrieved from https://dev.twitch.tv/ </label><br><br>
-            <label>Twitch channel name: <input name="BROADCASTER_NAME" required></label><br><br>
-            <label>Top/Random
-                <select name="TOP_OR_RANDOM">
-                    <option value="random" selected>Random</option>
-                    <option value="top">Top</option>
-                </select>
-            </label><br><br>
-            <label>Maximum number of clips: <input name="MAX_CLIPS" type="number" min="0" value="1000"></label><br><br>
-            <label>Volume: <input name="VOLUME_PERCENT" type="range" value="50" min="0" max="100"></label><br><br>
-            <label><input type="checkbox" name="SHOW_CLIP_CREATORS" checked> Show the author</label><br>
-            <label><input type="checkbox" name="SHOW_CLIP_GAME" checked> Show the game</label><br>
-            <label><input type="checkbox" name="SHOW_CLIP_TITLE" checked> Show the title</label><br><br>
-            <label>Description author prefix: <input name="DESC_AUTHOR_PREFIX" required value="Author: "></label><br><br>
-            <label>Description game prefix: <input name="DESC_GAME_PREFIX" required value="Game: "></label><br><br>
+            <div class="form-section">
+                <h2>Required Settings</h2>
 
-            <button id="save" type="submit">Save config.txt</button>
+                <div class="form-group">
+                    <label class="required-field">Client ID</label>
+                    <input name="CLIENT_ID" required>
+                    <p class="help-text">Your Twitch API Client ID from dev.twitch.tv</p>
+                </div>
+
+                <div class="form-group">
+                    <label class="required-field">Client Secret</label>
+                    <input name="CLIENT_SECRET" required>
+                    <p class="help-text">Your Twitch API Client Secret from dev.twitch.tv</p>
+                </div>
+
+                <div class="form-group">
+                    <label class="required-field">Twitch Channel Name</label>
+                    <input name="BROADCASTER_NAME" required>
+                    <p class="help-text">Your Twitch username (or the channel you want clips from)</p>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>Clip Settings</h2>
+
+                <div class="form-group">
+                    <label>Clip Selection Method</label>
+                    <select name="TOP_OR_RANDOM">
+                        <option value="random" selected>Random (more variety)</option>
+                        <option value="top">Top (most popular clips)</option>
+                    </select>
+                    <p class="help-text">Choose how clips are selected from your channel</p>
+                </div>
+
+                <div class="form-group">
+                    <label>Maximum Number of Clips</label>
+                    <input name="MAX_CLIPS" type="number" min="100" value="1000">
+                    <p class="help-text">How many clips to load (higher numbers use more memory)</p>
+                </div>
+
+                <div class="form-group">
+                    <label>Volume</label>
+                    <div style="display: flex; align-items: center;">
+                        <input name="VOLUME_PERCENT" type="range" value="50" min="0" max="100" id="volumeSlider">
+                        <span class="volume-display" id="volumeDisplay">50%</span>
+                    </div>
+                    <p class="help-text">Playback volume for clips</p>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>Display Options</h2>
+
+                <div class="checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="SHOW_CLIP_TITLE" checked>
+                        Show clip titles
+                    </label>
+                    <p class="help-text">Display the title of each clip</p>
+                </div>
+
+                <div class="checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="SHOW_CLIP_CREATORS" checked>
+                        Show clip creators
+                    </label>
+                    <p class="help-text">Display who created each clip</p>
+                </div>
+
+                <div class="checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="SHOW_CLIP_GAME" checked>
+                        Show games
+                    </label>
+                    <p class="help-text">Display which game was being played</p>
+                </div>
+
+                <div class="form-group">
+                    <label>Author Label</label>
+                    <input name="DESC_AUTHOR_PREFIX" value="Author: ">
+                    <p class="help-text">Text shown before the clip creator's name</p>
+                </div>
+
+                <div class="form-group">
+                    <label>Game Label</label>
+                    <input name="DESC_GAME_PREFIX" value="Game: ">
+                    <p class="help-text">Text shown before the game name</p>
+                </div>
+            </div>
+
+            <button id="save" type="submit">Save Configuration</button>
+            <div id="successMessage" class="success-message">Configuration saved successfully!</div>
+            <div id="errorMessage" class="error-message">Error saving configuration. Please try again.</div>
         </form>
     </div>
+</div>
+
+<div class="card">
+    <h2>Additional Help</h2>
+    <p>For more detailed instructions and troubleshooting, please refer to the <a href="https://github.com/ruzaro/RandomClipPlayer" target="_blank">documentation</a>.</p>
+
+    <h3>Optional Files</h3>
+    <ul>
+        <li><strong>filter.txt</strong> - Create this file to filter out clips with specific words in their titles (one word per line)</li>
+        <li><strong>aliases.txt</strong> - Create this file to change how creator names are displayed (format: original_name = display_name)</li>
+    </ul>
 </div>
 
 <script src="common.js"></script>
 <script>
     let fileHandle = null;
 
+    // Show volume value as user adjusts slider
+    document.getElementById("volumeSlider").addEventListener("input", function() {
+        document.getElementById("volumeDisplay").textContent = this.value + "%";
+    });
+
     document.getElementById("selectFile").addEventListener("click", async () => {
-        [fileHandle] = await window.showOpenFilePicker({
-            types: [{
-                description: 'Text Files',
-                accept: { 'text/plain': ['.txt'] }
-            }]
-        });
+        try {
+            [fileHandle] = await window.showOpenFilePicker({
+                types: [{
+                    description: 'Text Files',
+                    accept: { 'text/plain': ['.txt'] }
+                }]
+            });
 
-        if (!fileHandle) {
-            FileForm.hide();
-            return;
+            if (!fileHandle) {
+                FileForm.hide();
+                return;
+            }
+
+            const file = await fileHandle.getFile();
+            const text = await file.text();
+
+            const globalConfig = await parseGlobalConfig(text);
+
+            loadToForm(globalConfig);
+
+            FileForm.show();
+            hideMessages();
+        } catch (error) {
+            console.error("Error selecting file:", error);
+            document.getElementById("errorMessage").textContent = "Error selecting file: " + error.message;
+            document.getElementById("errorMessage").style.display = "block";
         }
-
-        const file = await fileHandle.getFile();
-        const text = await file.text();
-
-        const globalConfig = await parseGlobalConfig(text);
-
-        loadToForm(globalConfig);
-
-        FileForm.show();
     });
 
     document.getElementById("configForm").addEventListener("submit", async function(e) {
         e.preventDefault();
+        hideMessages();
 
-        if (!fileHandle) {
-            alert("File not selected!");
-            return;
-        }
-
-        const form = new FormData(e.target);
-
-        let config = "";
-
-        for (const [key, value] of form.entries()) {
-            if (CHECKBOX_KEYS.includes(key)) {
-                config += key + "=true\n";
-            } else {
-                config += key + "=" + value + "\n";
+        try {
+            if (!fileHandle) {
+                // If no file is selected, create a new one
+                fileHandle = await window.showSaveFilePicker({
+                    suggestedName: 'config.txt',
+                    types: [{
+                        description: 'Text Files',
+                        accept: { 'text/plain': ['.txt'] }
+                    }]
+                });
             }
+
+            const form = new FormData(e.target);
+
+            let config = "";
+
+            for (const [key, value] of form.entries()) {
+                if (CHECKBOX_KEYS.includes(key)) {
+                    config += key + "=true\n";
+                } else {
+                    config += key + "=" + value + "\n";
+                }
+            }
+
+            CHECKBOX_KEYS.forEach(k => {
+                if (!form.has(k)) config += k + "=false\n";
+            });
+
+            const writable = await fileHandle.createWritable();
+            await writable.write(config);
+            await writable.close();
+
+            document.getElementById("successMessage").style.display = "block";
+
+            // Hide success message after 3 seconds
+            setTimeout(() => {
+                document.getElementById("successMessage").style.display = "none";
+            }, 3000);
+        } catch (error) {
+            console.error("Error saving file:", error);
+            document.getElementById("errorMessage").textContent = "Error saving file: " + error.message;
+            document.getElementById("errorMessage").style.display = "block";
         }
-
-        CHECKBOX_KEYS.forEach(k => {
-            if (!form.has(k)) config += k + "=false\n";
-        });
-
-        const writable = await fileHandle.createWritable();
-        await writable.write(config);
-        await writable.close();
     });
 
-    function loadToForm(globalConfig){
+    function hideMessages() {
+        document.getElementById("successMessage").style.display = "none";
+        document.getElementById("errorMessage").style.display = "none";
+    }
+
+    function loadToForm(globalConfig) {
         const form = document.getElementById("configForm");
 
         for (const [key, value] of Object.entries(globalConfig)) {
             const input = form.elements[key];
-            if (!input) return;
+            if (!input) continue;
 
             if (input.type === "checkbox") {
                 input.checked = value.trim() === "true";
+            } else if (input.type === "range") {
+                input.value = value.trim();
+                document.getElementById("volumeDisplay").textContent = value.trim() + "%";
             } else {
                 input.value = value.trim();
             }
@@ -120,8 +407,9 @@
         }
     }
 
-    async function onLoad(){
+    async function onLoad() {
         FileForm.hide();
+        hideMessages();
     }
 
     window.addEventListener("load", onLoad);
