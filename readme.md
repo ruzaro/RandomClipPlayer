@@ -59,15 +59,20 @@ If you have already created one and have the Client ID and Client Secret, skip t
 
 ### Step 3: Set Up Your Configuration
 1. Open the `configurator.html` file in your web browser
-  - **Important**: This step ***DOESN'T*** create the required `config.txt` file that the player needs to function. It needs to exists already or be created during file selection!
+  - **Important**: This step ***DOES NOT*** create the required `config.txt` file that the player needs to function. It needs to exists already or be created during file selection!
   - Without a properly configured `config.txt` file, the player will show an error message
-2. Fill in the required information:
+2. Click "Select config.txt" to select a file that will be used to save config.
+3. Fill in the required information:
   - **Client ID**: Paste your Client ID from Step 2
   - **Client Secret**: Paste your Client Secret from Step 2
   - **Twitch Channel Name**: Your Twitch username
-3. Adjust any other settings as desired
-4. Click "Select config.txt" to save your settings
-  - Make sure to move this file in the same folder as the other player files
+4. Adjust any other settings as desired
+5. Click the "Save Configuration" button to save your settings
+6. Use the "Open grant permissions page" button to grant required permissions to show clips. It will open a new page.
+7. You will have to use your broadcaster account. Clip player will not work if you use any other account!
+8. After granting permissions, you will be redirected to a page that is not working which is expected (it will have "localhost" in its link). You can just close that.
+9. You can now close the configurator page. Make sure to move the `config.txt` file in the same folder as all other clip player files.
+
 
 ### Step 4: Add to OBS
 1. Open OBS Studio
