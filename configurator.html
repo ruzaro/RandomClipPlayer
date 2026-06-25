@@ -114,6 +114,10 @@
             background-color: #7d5bbe;
         }
 
+        button:disabled {
+            background-color: #666;
+        }
+
         .success-message {
             background-color: #4CAF50;
             color: white;
@@ -164,6 +168,9 @@
         </div>
         <div class="setup-step">
             <strong>Save Configuration</strong> - Click "Save Configuration" to save configuration into selected file.
+        </div>
+        <div class="setup-step">
+            <strong>Authorize Twitch API Credentials</strong> - Grant newly generated Twitch API Credentials all required permissions.
         </div>
         <div class="setup-step">
             <strong>Add player to OBS</strong> - Add clipPlayer.html as a Browser Source in OBS (make sure to check "Local file").
@@ -280,6 +287,17 @@
 </div>
 
 <div class="card">
+    <h2>Grant permissions</h2>
+
+    <p>This is required for clip player to work. Basically, you will allow clip player to download clips from Twitch. Without this step, it is impossible for the player to work!</p>
+
+    <div>
+        <button id="grantPermissions">Open grant permissions page ↗</button>
+        <p class="help-text">Config file <strong>needs to be loaded</strong> for that button to be active and for it to work!</p>
+    </div>
+</div>
+
+<div class="card">
     <h2>Additional Help</h2>
     <p>For more detailed instructions and troubleshooting, please refer to the <a href="https://github.com/ruzaro/RandomClipPlayer" target="_blank">documentation</a>.</p>
 
@@ -328,6 +346,18 @@
             const successMessage = document.getElementById("successMessage");
             successMessage.style.display = "none";
             errorMessage.style.display = "none";
+        }
+    }
+
+    class Permissions {
+        static show() {
+            const element = document.getElementById("grantPermissions");
+            element.disabled = false;
+        }
+
+        static hide() {
+            const element = document.getElementById("grantPermissions");
+            element.disabled = true;
         }
     }
 
@@ -410,6 +440,36 @@
         }
     });
 
+    document.getElementById("grantPermissions").addEventListener("click", async function(e) {
+        e.preventDefault();
+
+        try {
+            const form = document.getElementById("configForm");
+
+            let client_id = form.elements["CLIENT_ID"];
+
+            if (!client_id) {
+                Messages.error("Error redirecting: " + "Client ID is missing!");
+                return;
+            }
+
+            const redirect_base = 'https://id.twitch.tv/oauth2/authorize';
+
+            const grant_permissions_url = redirect_base + '?' +
+                `response_type=token` + '&' +
+                'force_verify=true' + '&' +
+                `client_id=${client_id.value}` + '&' +
+                `redirect_uri=${encodeURIComponent('http://localhost')}` + '&' +
+                `scope=${encodeURIComponent('channel:manage:clips')}`;
+
+            window.open(grant_permissions_url, '_blank');
+
+        } catch (error) {
+            console.error("Error redirecting:", error);
+            Messages.error("Error redirecting: " + error.message);
+        }
+    });
+
     function loadToForm(globalConfig) {
         const form = document.getElementById("configForm");
 
@@ -430,6 +490,7 @@
     async function onLoad() {
         FileForm.hide();
         Messages.hide();
+        Permissions.hide();
     }
 
     window.addEventListener("load", onLoad);

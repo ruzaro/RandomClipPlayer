@@ -363,9 +363,9 @@
             let clipData = this.selectNextClip();
 
             try {
-                let clipInfo = await this.getClipInfo(clipData.id);
+                let gameName = await this.getGameName(clipData.game_id);
                 clipData.url = await this.getDownloadUrl(clipData.id);
-                clipData.gameName = clipInfo.game ? clipInfo.game.displayName : "Unknown Game";
+                clipData.gameName = gameName ? gameName : "Unknown Game";
 
                 if (!this.playedClips.includes(clipData.id)) {
                     this.playedClips.push(clipData.id);
@@ -399,87 +399,42 @@
             return clipData;
         }
 
-        async getClipInfo(clipId) {
-            const url = "https://gql.twitch.tv/gql";
+        async getGameName(gameId){
+            const url =
+                `https://api.twitch.tv/helix/games` +
+                `?id=${gameId}`;
 
-            const requestBody = {
-                query: `query{clip(slug:\"${clipId}\"){game{displayName}}}`,
-                variables: {}
-            };
+            const response = await this.authFetch.fetch(url);
 
-            try {
-                const response = await fetch(url, {
-                    method: "POST",
-                    headers: {
-                        "Client-ID": "kimne78kx3ncx6brgo4mv6wki5h1ko",
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify(requestBody)
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Failed to get clip info: ${response.status} ${response.statusText}`);
-                }
-
-                const data = await response.json();
-                return data.data.clip;
-            } catch (error) {
-                console.error("Error getting clip info:", error);
-                throw new Error(`Failed to get clip info: ${error.message}`);
+            if (!response.ok) {
+                throw new Error(
+                    `${response.status} ${response.statusText} ${await response.text()}`
+                );
             }
-        }
 
-        async getClipLinks(clipId) {
-            const url = "https://gql.twitch.tv/gql";
+            const data = await response.json();
 
-            const requestBody = {
-                operationName: "VideoAccessToken_Clip",
-                variables: { slug: clipId },
-                extensions: {
-                    persistedQuery: {
-                        version: 1,
-                        sha256Hash: "36b89d2507fce29e5ca551df756d27c1cfe079e2609642b4390aa4c35796eb11"
-                    }
-                }
-            };
-
-            try {
-                const response = await fetch(url, {
-                    method: "POST",
-                    headers: {
-                        "Client-ID": "kimne78kx3ncx6brgo4mv6wki5h1ko",
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify(requestBody)
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Failed to get clip links: ${response.status} ${response.statusText}`);
-                }
-
-                return await response.json();
-            } catch (error) {
-                console.error("Error getting clip links:", error);
-                throw new Error(`Failed to get clip links: ${error.message}`);
-            }
+            return data.data[0].name;
         }
 
         async getDownloadUrl(clipId) {
-            const clipData = await this.getClipLinks(clipId);
-            const clip = clipData.data.clip;
+            const url =
+                `https://api.twitch.tv/helix/clips/downloads` +
+                `?broadcaster_id=${this.authFetch.broadcasterId}` +
+                `&editor_id=${this.authFetch.broadcasterId}` +
+                `&clip_id=${clipId}`;
 
-            if (!clip.playbackAccessToken) {
-                throw new Error("Invalid Clip, deleted possibly?");
+            const response = await this.authFetch.fetch(url);
+
+            if (!response.ok) {
+                throw new Error(
+                    `${response.status} ${response.statusText} ${await response.text()}`
+                );
             }
 
-            if (!clip.videoQualities || clip.videoQualities.length === 0) {
-                throw new Error("Clip has no video qualities, deleted possibly?");
-            }
+            const data = await response.json();
 
-            const qualityMatch = clip.videoQualities[0];
-            const downloadUrl = qualityMatch.sourceURL;
-
-            return `${downloadUrl}?sig=${clip.playbackAccessToken.signature}&token=${encodeURIComponent(clip.playbackAccessToken.value)}`;
+            return data.data[0].landscape_download_url;
         }
     }
 
@@ -596,7 +551,6 @@
             this.clipsHandler = clipsHandler;
             this.channel = channel;
             this.nextClip = null;
-            this.isPlaying = false;
             this.isFetching = false;
             this.hasError = false;
 
@@ -606,8 +560,6 @@
         }
 
         async handleClipEnded() {
-            this.isPlaying = false;
-
             this.playerHandler.showLoader();
 
             try {
@@ -641,7 +593,6 @@
                 const currentClip = this.nextClip;
                 this.nextClip = null;
 
-                this.isPlaying = true;
                 await this.playerHandler.playClip();
 
                 this.channel.postMessage(JSON.stringify({
