@@ -194,19 +194,25 @@
 
                 <div class="form-group">
                     <label class="required-field">Client ID</label>
-                    <input name="CLIENT_ID" required>
+                    <label>
+                        <input name="CLIENT_ID" required>
+                    </label>
                     <p class="help-text">Your Twitch API Client ID from dev.twitch.tv</p>
                 </div>
 
                 <div class="form-group">
                     <label class="required-field">Client Secret</label>
-                    <input name="CLIENT_SECRET" required>
+                    <label>
+                        <input name="CLIENT_SECRET" required>
+                    </label>
                     <p class="help-text">Your Twitch API Client Secret from dev.twitch.tv</p>
                 </div>
 
                 <div class="form-group">
                     <label class="required-field">Twitch Channel Name</label>
-                    <input name="BROADCASTER_NAME" required>
+                    <label>
+                        <input name="BROADCASTER_NAME" required>
+                    </label>
                     <p class="help-text">Your Twitch username (or the channel you want clips from)</p>
                 </div>
             </div>
@@ -216,22 +222,27 @@
 
                 <div class="form-group">
                     <label>Clip Selection Method</label>
-                    <select name="TOP_OR_RANDOM">
-                        <option value="random" selected>Random (more variety)</option>
-                        <option value="top">Top (most popular clips)</option>
-                    </select>
+                    <label>
+                        <select name="TOP_OR_RANDOM">
+                            <option value="random" selected>Random (more variety)</option>
+                            <option value="top">Top (most popular clips)</option>
+                        </select>
+                    </label>
                     <p class="help-text">Choose how clips are selected from your channel</p>
                 </div>
 
                 <div class="form-group">
-                    <label>Maximum Number of Clips</label>
-                    <input name="MAX_CLIPS" type="number" min="100" value="1000">
+                    <label>Maximum Clips Number</label>
+                    <label>
+                        <input name="MAX_CLIPS" type="number" min="100" value="1000">
+                    </label>
                     <p class="help-text">How many clips to load (higher numbers use more memory)</p>
                 </div>
 
                 <div class="form-group">
                     <label>Volume</label>
                     <div style="display: flex; align-items: center;">
+                        <label for="volumeSlider"></label>
                         <input name="VOLUME_PERCENT" type="range" value="50" min="0" max="100" id="volumeSlider">
                         <span class="volume-display" id="volumeDisplay">50%</span>
                     </div>
@@ -268,13 +279,17 @@
 
                 <div class="form-group">
                     <label>Author Label</label>
-                    <input name="DESC_AUTHOR_PREFIX" value="Author: ">
+                    <label>
+                        <input name="DESC_AUTHOR_PREFIX" value="Author: ">
+                    </label>
                     <p class="help-text">Text shown before the clip creator's name</p>
                 </div>
 
                 <div class="form-group">
                     <label>Game Label</label>
-                    <input name="DESC_GAME_PREFIX" value="Game: ">
+                    <label>
+                        <input name="DESC_GAME_PREFIX" value="Game: ">
+                    </label>
                     <p class="help-text">Text shown before the game name</p>
                 </div>
             </div>
@@ -376,6 +391,7 @@
 
             if (!fileHandle) {
                 FileForm.hide();
+                Permissions.hide();
                 return;
             }
 
@@ -387,6 +403,7 @@
             loadToForm(globalConfig);
 
             FileForm.show();
+            Permissions.show();
             Messages.hide();
         } catch (error) {
             console.error("Error selecting file:", error);

@@ -48,7 +48,7 @@ If you have already created one and have the Client ID and Client Secret, skip t
 2. Click "Your Console" in the top right
 3. Click "Register Your Application"
 4. Fill in the form:
-  - **Name**: Random Clip Player (or any name you prefer)
+  - **Name**: Give your player a unique name. All applications need to have different names (even when they don't belong to the same user).
   - **Category**: Choose "Website Integration" or "Other"
   - **OAuth Redirect URL**: Just type `https://localhost` (this won't be used)
 5. Click "Create"
